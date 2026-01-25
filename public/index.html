@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="ImageShare - Upload and share images.">
+    <link rel="stylesheet" href="/public/css/bulma.css">
+    <link rel="stylesheet" href="/public/css/upload-btn.css">
+    <title>ImageShare</title>
+  </head>
+  <body>
+    <div class="hero is-primary" id="banner-color">
+      <div class="hero-body">
+        <div class="container">
+          <h1 class="title">
+            ImageShare
+          </h1>
+          <h2 class="subtitle" id="status-mesg">
+            Start uploading and share images with Friends.
+          </h2>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="container">
+        <div class="field">
+          <p class="control">
+            <input id="file" class="file-field" name="file" multiple type="file" accept="image/*,video/*">
+            <label id="dropzone" for="file" class="button is-large is-fullwidth has-text-centered file-label">Select or Drop Files</label>
+          </p>
+        </div>
+        <div class="field">
+          <p class="control">
+            <button id="submit" class="button is-primary is-medium is-fullwidth" disabled>Upload</button>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="columns is-multiline is-gapless" id="uploads">
+    </div>
+    <div class="footer">
+      <div class="container is-fluid">
+        <div class="content has-text-centered">
+          <p class="is-center">
+          <strong><a href="https://github.com/adedomin/imageshare-rs">ImageShare</a></strong>.
+          </p>
+        </div>
+      </div>
+    </div>
+    <script defer src="/public/js/upload-handler.js"></script>
+    <script defer src="/public/js/paste-handler.js"></script>
+  </body>
+</html>

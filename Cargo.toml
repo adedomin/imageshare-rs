@@ -1,0 +1,26 @@
+[package]
+name = "imageshare-rs"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["serve-files"]
+serve-files = ["dep:tower-http"]
+
+[dependencies]
+include_dir = "0.7"
+tokio = { version = "1", features = ["fs", "net", "rt", "signal", "io-util"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "multipart"] }
+axum-extra = { version = "0.12", default-features = false, features = ["typed-header"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs"], optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+sqids = "0.4"
+rand = { version = "0.9", default-features = false, features = ["thread_rng"] }
+thiserror = "2"
+governor = { version = "0.10", default-features = false, features = ["std"] }
+http = "1"
+pin-project = "1"
