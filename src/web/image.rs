@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
 use crate::config::{Ratelim, WebData};
@@ -23,6 +24,12 @@ struct UploadGuard<'a> {
     inner: Option<&'a Path>,
 }
 
+fn background_rm_file(del: PathBuf) {
+    tokio::task::spawn_blocking(move || {
+        _ = std::fs::remove_file(del);
+    });
+}
+
 impl<'a> UploadGuard<'a> {
     pub fn new<T: AsRef<Path> + 'a>(path: &'a T) -> Self {
         Self {
@@ -38,7 +45,7 @@ impl<'a> UploadGuard<'a> {
 impl<'a> Drop for UploadGuard<'a> {
     fn drop(&mut self) {
         if let Some(path) = self.inner {
-            _ = std::fs::remove_file(path);
+            background_rm_file(path.to_path_buf());
         }
     }
 }
@@ -88,9 +95,7 @@ async fn upload_img(
         upload.push(&fname);
         // if the file fails beyond this point, it will be stale in the FIFO. oh well.
         if let Some(del) = webdata.image.push(&upload) {
-            _ = tokio::task::spawn_blocking(move || {
-                _ = std::fs::remove_file(del);
-            });
+            background_rm_file(del);
         }
 
         let fguard = UploadGuard::new(&upload);
@@ -147,7 +152,7 @@ async fn get_file_err() -> axum::response::Response {
 }
 
 pub fn routes<T: AsRef<std::path::Path>>(
-    image_path: T,
+    #[allow(unused_variables)] image_path: T,
     ratelim: Option<Ratelim>,
 ) -> Router<Arc<WebData>> {
     let r = Router::new().route("/upload", post(upload_img)).layer(

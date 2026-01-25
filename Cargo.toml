@@ -24,3 +24,13 @@ thiserror = "2"
 governor = { version = "0.10", default-features = false, features = ["std"] }
 http = "1"
 pin-project = "1"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+# I want my application to die horribly
+# if I let it unwind the stack, which is probably preferred,
+# tokio's runtime will catch the panic and continue.
+panic = "abort"
+strip = "debuginfo"
+# opt-level = 3 # 0, 1, 2, 3 or "s" for small or "z" for small + no loop vectorization.

@@ -23,12 +23,7 @@ pub fn start_web(
     let bind_addr = config.get_bind_addr();
     let ratelim = config.ratelim.take();
     if !config.link_prefix.is_empty() {
-        println!(
-            "Listening on {}\nStoring images at {:?}\nMax image size: {}",
-            config.link_prefix,
-            webdata.image.get_base(),
-            webdata.image.get_max_siz(),
-        );
+        println!("Listening on {}", config.link_prefix);
     }
 
     let web = Router::<Arc<WebData>>::new()
