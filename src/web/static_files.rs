@@ -1,8 +1,6 @@
-use std::path::PathBuf;
-
 use axum::{
     Router,
-    extract::Request,
+    extract::Path,
     http::{
         StatusCode,
         header::{CACHE_CONTROL, CONTENT_TYPE},
@@ -54,14 +52,21 @@ fn get_static_file_from(d: &'static Dir, path: &str, ext: &str) -> Static {
         .unwrap_or(Static::NotFound)
 }
 
-async fn static_content(req: Request) -> Static {
-    let loc = req.uri().path();
-    let Some(loc) = loc.strip_prefix("/public/") else {
-        return Static::NotFound;
-    };
-    let locp = PathBuf::from(loc);
-    let ext = locp.extension().unwrap_or_default().to_string_lossy();
-    get_static_file_from(&CLIENT_DIR, loc, ext.as_ref())
+fn get_ext(uri_path: &str) -> Option<&str> {
+    uri_path.rsplit('/').next().and_then(|fname| {
+        let mut itr = fname.rsplitn(2, '.');
+        let ext = itr.next();
+        let base = itr.next();
+        match base {
+            None | Some("") => None,
+            _ => ext,
+        }
+    })
+}
+
+async fn static_content(Path(path): Path<String>) -> Static {
+    let ext = get_ext(&path).unwrap_or("");
+    get_static_file_from(&CLIENT_DIR, &path, ext)
 }
 
 async fn index_page() -> Static {
@@ -76,5 +81,5 @@ pub fn routes<T: Send + Sync + Clone + 'static>() -> Router<T> {
     Router::new()
         .route("/", get(index_page))
         .route("/favicon.ico", get(favicon))
-        .fallback(static_content)
+        .route("/public/{*path}", get(static_content))
 }

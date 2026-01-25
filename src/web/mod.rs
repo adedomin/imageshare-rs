@@ -27,8 +27,8 @@ pub fn start_web(
     }
 
     let web = Router::<Arc<WebData>>::new()
-        .merge(static_files::routes())
         .merge(image::routes(webdata.image.get_base(), ratelim))
+        .merge(static_files::routes())
         .with_state(webdata);
     tokio::spawn(async move {
         let shutdown_h = async move {
