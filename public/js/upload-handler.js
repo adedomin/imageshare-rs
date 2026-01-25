@@ -23,21 +23,21 @@ let dropzone = document.getElementById('dropzone');
 let submit = document.getElementById('submit');
 
 function setInfo(message) {
-    statusMsg.innerHTML = message;
+    statusMsg.textContent = message;
     banner.classList.remove('is-success');
     banner.classList.remove('is-danger');
     banner.classList.add('is-primary');
 }
 
 function setFailBanner(message) {
-    statusMsg.innerHTML = message;
+    statusMsg.textContent = message;
     banner.classList.remove('is-primary');
     banner.classList.remove('is-success');
     banner.classList.add('is-danger');
 }
 
 function setSuccessBanner(message) {
-    statusMsg.innerHTML = message;
+    statusMsg.textContent = message;
     banner.classList.remove('is-danger');
     banner.classList.remove('is-primary');
     banner.classList.add('is-success');
@@ -84,7 +84,7 @@ function createFileBox(file, xhr) {
     copyUrlButton.classList.add('button');
     copyUrlButton.textContent = 'Copy to clipboard';
     copyUrlButton.dataset.wasClicked = false;
-    copyUrlButton.onclick = function(ev) {
+    copyUrlButton.addEventListener('click', function(ev) {
         ev.preventDefault();
 
         // unset any existing clicked button
@@ -114,7 +114,7 @@ function createFileBox(file, xhr) {
         }
 
         document.body.removeChild(fakeInput);
-    };
+    });
 
     let contentBox = document.createElement('p');
     contentBox.classList.add('has-text-centered');
@@ -148,7 +148,7 @@ function createFileBox(file, xhr) {
 }
 
 function finishedUpload(ev) {
-    dropzone.innerHTML = 'Select or Drop Files';
+    dropzone.textContent = 'Select or Drop Files';
 
     let xhr = ev.target;
     let { box } = xhr.box;
@@ -169,10 +169,9 @@ function finishedUpload(ev) {
     }
 
     url.href = res.msg;
-    url.innerHTML = res.msg;
+    url.textContent = res.msg;
     setSuccessBanner('Successfully Uploaded');
-    document.getElementById('uploads')
-        .appendChild(xhr.box);
+    document.getElementById('uploads').appendChild(xhr.box);
 }
 
 let movingDotPos = -1;
@@ -182,30 +181,18 @@ function incrementProgress(el) {
     dots[movingDotPos] = 'o';
 
     if (el.lengthComputable) {
-        dropzone.innerHTML = `${dots.join('')} ${Math.floor((el.loaded / el.total)*100)}%`;
+        dropzone.textContent = `${dots.join('')} ${Math.floor((el.loaded / el.total)*100)}%`;
     }
     else {
-        dropzone.innerHTML = `${dots.join('')}`;
+        dropzone.textContent = `${dots.join('')}`;
     }
-}
-
-function handlePaste(file) {
-    let xhr = new XMLHttpRequest();
-    xhr.open('POST', 'upload');
-    xhr.upload.addEventListener('progress', incrementProgress);
-    xhr.addEventListener('load', finishedUpload);
-    // xhr.addEventListener('error', finishedUpload);
-    xhr.box = createFileBox(file, xhr);
-    let form = new FormData();
-    form.append('file', file);
-    xhr.send(form);
 }
 
 function handleFile(file) {
     if (file.type.indexOf('image') != 0 &&
         file.type.indexOf('video') != 0 ) {
 
-        dropzone.innerHTML = 'Select or Drop Files';
+        dropzone.textContent = 'Select or Drop Files';
         return setFailBanner('You can only upload images or videos');
     }
 
@@ -222,7 +209,7 @@ function handleFile(file) {
 }
 
 function changeFileLabel(el) {
-    dropzone.innerHTML = `Selected (${el.target.files.length})`;
+    dropzone.textContent = `Selected (${el.target.files.length})`;
     if (el.target.files.length > 0)
         submit.disabled = false;
 }
@@ -248,9 +235,10 @@ function dragend(ev) {
     ev.dataTransfer.clearData();
 }
 
-files.onchange = changeFileLabel;
+files.addEventListener('change', changeFileLabel);
 
-dropzone.ondrop = dropHandle;
-dropzone.ondragover = dragover;
-dropzone.ondragend = dragend;
-submit.onclick = uploadFile.bind(null, files);
+dropzone.addEventListener('drop', dropHandle);
+dropzone.addEventListener('dragover', dragover);
+dropzone.addEventListener('dragend', dragend);
+
+submit.addEventListener('click', uploadFile.bind(null, files));
