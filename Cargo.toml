@@ -11,13 +11,11 @@ serve-files = ["dep:tower-http"]
 include_dir = "0.7"
 tokio = { version = "1", features = ["fs", "net", "rt", "signal", "io-util"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "multipart"] }
-axum-extra = { version = "0.12", default-features = false, features = ["typed-header"] }
+axum-extra = { version = "0.12", default-features = false, features = ["with-rejection"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["fs"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-log = "0.4"
-env_logger = "0.11"
 sqids = "0.4"
 rand = { version = "0.9", default-features = false, features = ["thread_rng"] }
 thiserror = "2"
@@ -33,4 +31,3 @@ codegen-units = 1
 # tokio's runtime will catch the panic and continue.
 panic = "abort"
 strip = "debuginfo"
-# opt-level = 3 # 0, 1, 2, 3 or "s" for small or "z" for small + no loop vectorization.

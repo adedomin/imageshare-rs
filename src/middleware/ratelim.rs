@@ -129,19 +129,11 @@ where
                 .get("X-Real-IP")
                 .and_then(|hv| hv.to_str().ok())
                 .and_then(|hv| hv.parse().ok());
-            if ip.is_none() {
-                log::warn!(
-                    "Something is wrong with your reverse proxy and the X-Real-IP header. Falling back."
-                );
-                get_ip()
-            } else {
-                ip
-            }
+            if ip.is_none() { get_ip() } else { ip }
         } else {
             get_ip()
         };
         let Some(ip) = ip else {
-            log::error!("Your reverse proxy is not set up correctly. Missing X-Real-IP.");
             return EarlyRetFut::new_early(
                 ApiError::new("X-Real-IP header missing or failed to extract IpAddr from Request.")
                     .into_response(),

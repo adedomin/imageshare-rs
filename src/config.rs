@@ -10,7 +10,10 @@ use rand::{Rng, seq::SliceRandom};
 use serde::Deserialize;
 use sqids::Sqids;
 
-use crate::config::env_vars::{config, data, rt};
+use crate::{
+    config::env_vars::{config, data, rt},
+    models::webdata::WebData,
+};
 
 mod env_vars {
     pub mod config {
@@ -60,29 +63,32 @@ pub enum ConfigError {
     NoConfig(PathBuf),
 }
 
-fn siz_default() -> NonZeroUsize {
-    NonZeroUsize::new(10485760).unwrap()
+const DEFAULT_DIR_BASE: [&str; 2] = ["i", "p"];
+const DEFAULT_SIZ_LIM: [usize; 2] = [10485760 /* 10MiB */, 65536 /* 64KiB */];
+
+fn siz_default<const T: usize>() -> NonZeroUsize {
+    NonZeroUsize::new(DEFAULT_SIZ_LIM[T]).unwrap()
 }
 
-fn img_dir_default() -> PathBuf {
-    find_systemd_or_xdg_path(data::BASE, data::USER, data::FALLBACK, "images")
+fn dir_default<const T: usize>() -> PathBuf {
+    find_systemd_or_xdg_path(data::BASE, data::USER, data::FALLBACK, DEFAULT_DIR_BASE[T])
 }
 
 #[derive(Deserialize)]
-struct StorageSettings {
-    #[serde(default = "siz_default")]
+struct StorageSettings<const T: usize> {
+    #[serde(default = "siz_default::<T>")]
     siz: NonZeroUsize,
     cnt: Option<NonZeroUsize>,
-    #[serde(default = "img_dir_default")]
+    #[serde(default = "dir_default::<T>")]
     dir: PathBuf,
 }
 
-impl Default for StorageSettings {
+impl<const T: usize> Default for StorageSettings<T> {
     fn default() -> Self {
         Self {
-            siz: siz_default(),
+            siz: siz_default::<T>(),
             cnt: None,
-            dir: img_dir_default(),
+            dir: dir_default::<T>(),
         }
     }
 }
@@ -146,22 +152,23 @@ impl StorageState {
     }
 
     pub fn gen_new_fname(&self, ext: &'static str) -> String {
-        let seq = self
-            .seqno
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        // pads out the id for low sequence numbers and adds minor random noise to it.
-        let rand_junk = rand::rng().random::<u16>() as u64;
-        format!(
-            "{}.{ext}",
-            self.idgen
-                .encode(&[seq, rand_junk])
-                .expect("We somehow failed to generate a non-offensive filename?")
-        )
+        for _ in 0..64 {
+            let seq = self
+                .seqno
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            // pads out the id for low sequence numbers and adds minor random noise to it.
+            let rand_junk = rand::rng().random::<u16>() as u64;
+            // unlikely, but it could fail to generate an ID due to offensive words.
+            if let Ok(id) = self.idgen.encode(&[seq, rand_junk]) {
+                return format!("{id}.{ext}",);
+            }
+        }
+        panic!("Failed to generate an ID after 64 attempts. Something is wrong.");
     }
 }
 
-impl From<StorageSettings> for StorageState {
-    fn from(value: StorageSettings) -> Self {
+impl<const T: usize> From<StorageSettings<T>> for StorageState {
+    fn from(value: StorageSettings<T>) -> Self {
         let stor = value
             .cnt
             .map(|v| v.get())
@@ -183,12 +190,6 @@ impl From<StorageSettings> for StorageState {
             seqno: AtomicU64::new(0),
         }
     }
-}
-
-pub struct WebData {
-    pub image: StorageState,
-    /// The link prefix to send in replies to users, e.g. "https://images.ghetty.space"
-    pub link_prefix: String,
 }
 
 #[derive(Deserialize, Clone)]
@@ -225,7 +226,8 @@ impl Ratelim {
 
 #[derive(Deserialize)]
 pub struct Config {
-    image: Option<StorageSettings>,
+    image: Option<StorageSettings<0>>,
+    paste: Option<StorageSettings<1>>,
     pub ratelim: Option<Ratelim>,
     #[serde(default)]
     pub link_prefix: String,
@@ -248,9 +250,12 @@ impl Config {
 
     pub fn get_webdata(&mut self) -> Result<Arc<WebData>, ConfigError> {
         let image = StorageState::from(self.image.take().unwrap_or_default());
+        let paste = StorageState::from(self.paste.take().unwrap_or_default());
         image.prepopulate()?;
+        paste.prepopulate()?;
         Ok(Arc::new(WebData {
             image,
+            paste,
             link_prefix: self.link_prefix.clone(),
         }))
     }
@@ -291,7 +296,15 @@ const EXAMPLE_CONFIG: &str = r###"
     , "//": "Max number of files before deleting. default: unlimited."
     , "cnt": 100
     , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/images or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/images"
-    , "dir": "./uploads"
+    , "dir": "./uploads/images"
+    }
+, "paste":
+    { "//": "Max allowed paste size. Note: pastes are buffered in memory to check for utf8-ness and simplicity."
+    , "siz": 65536
+    , "//": "Max number of files before deleting. default: unlimited."
+    , "cnt": 10000
+    , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/pastes or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/pastes"
+    , "dir": "./uploads/pastes"
     }
 , "ratelim":
     { "//": "Number of seconds to restore one token."

@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use axum::response::IntoResponse;
+use axum::{extract::rejection::StringRejection, response::IntoResponse};
 use http::{HeaderName, HeaderValue, Response, StatusCode, header::CONTENT_TYPE};
 use serde::Serialize;
 
@@ -47,11 +47,14 @@ impl ApiError {
     pub fn to_json(&self) -> Vec<u8> {
         match serde_json::to_vec(&self) {
             Ok(ok) => ok,
-            Err(e) => {
-                log::error!("Could not Serialize ApiError Struct: {self:?}, reason {e}");
-                FALLBACK.to_owned()
-            }
+            Err(_) => FALLBACK.to_owned(),
         }
+    }
+}
+
+impl From<StringRejection> for ApiError {
+    fn from(value: StringRejection) -> Self {
+        ApiError::new_with_status(value.status(), value)
     }
 }
 

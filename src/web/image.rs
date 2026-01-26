@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
-use crate::config::{Ratelim, WebData};
-use crate::middleware::csrf::HeaderCsrf;
-use crate::middleware::ratelim::BucketRatelim;
+use crate::middleware::contentlen::HeaderSizeLim;
+use crate::models::webdata::WebData;
 use crate::models::{api::ApiError, mime::detect_ext};
 use axum::{
     Router,
@@ -12,19 +11,17 @@ use axum::{
     http::StatusCode,
     routing::post,
 };
-use axum_extra::TypedHeader;
-use axum_extra::headers::ContentLength;
 use tokio::{
     fs::File,
     io::{AsyncWriteExt, BufWriter},
 };
 use tower::ServiceBuilder;
 
-struct UploadGuard<'a> {
+pub struct UploadGuard<'a> {
     inner: Option<&'a Path>,
 }
 
-fn background_rm_file(del: PathBuf) {
+pub fn background_rm_file(del: PathBuf) {
     tokio::task::spawn_blocking(move || {
         _ = std::fs::remove_file(del);
     });
@@ -73,21 +70,14 @@ async fn det_ext(f: &mut Field<'_>) -> Result<(Bytes, &'static str), ApiError> {
 fn payload_too_large(lim: usize) -> ApiError {
     ApiError::new_with_status(
         StatusCode::PAYLOAD_TOO_LARGE,
-        format!("Your Image is too large! (limit: {lim} B)"),
+        format!("Your image is too large! limit: {lim} bytes."),
     )
 }
 
 async fn upload_img(
-    content_len: Option<TypedHeader<ContentLength>>,
     State(webdata): State<Arc<WebData>>,
     mut multipart: Multipart,
 ) -> Result<ApiError, ApiError> {
-    let max_siz = webdata.image.get_max_siz();
-    if let Some(content_len) = content_len
-        && content_len.0.0 > max_siz as u64
-    {
-        return Err(payload_too_large(max_siz));
-    }
     if let Some(mut field) = multipart.next_field().await.map_err(ApiError::new)? {
         let (initial_read, ext) = det_ext(&mut field).await?;
         let fname = webdata.image.gen_new_fname(ext);
@@ -100,16 +90,17 @@ async fn upload_img(
 
         let fguard = UploadGuard::new(&upload);
         {
+            let max_siz = webdata.image.get_max_siz();
             let mut written: usize = 0;
-            let mut file = BufWriter::new(File::create_new(&upload).await.map_err(|e| {
-                log::error!("FS File upload err: {e}");
-                ApiError::new(e)
-            })?);
+            // if we collide with file names, better to just overwrite.
+            let mut file = BufWriter::new(File::create(&upload).await.map_err(ApiError::new)?);
             // write our mime detect read.
             written += initial_read.len();
             file.write_all(&initial_read).await.map_err(ApiError::new)?;
             while let Some(chunk) = field.chunk().await.map_err(ApiError::new)? {
                 written += chunk.len();
+                // Technically forms can be sent with Transfer-Encoding: chunked.
+                // So we must guard against large reads.
                 if written > max_siz {
                     return Err(payload_too_large(max_siz));
                 }
@@ -136,8 +127,10 @@ You are expected to use a Reverse Proxy to host imageshare if you disable the `s
 To serve the /i folder, Please see the example nginx snippet:
 
 ```nginx.conf
-location = /i {
-    root /var/lib/imageshare/i;
+# assumes you use the default image path
+location /i/ {
+    add_header X-Content-Type-Options nosniff;
+    alias /var/lib/imageshare-rs;
 }
 ```
 "###;
@@ -151,20 +144,17 @@ async fn get_file_err() -> axum::response::Response {
         .unwrap()
 }
 
-pub fn routes<T: AsRef<std::path::Path>>(
-    #[allow(unused_variables)] image_path: T,
-    ratelim: Option<Ratelim>,
-) -> Router<Arc<WebData>> {
+pub fn routes(webdata: Arc<WebData>) -> Router<Arc<WebData>> {
     let r = Router::new().route("/upload", post(upload_img)).layer(
         ServiceBuilder::new()
             .layer(DefaultBodyLimit::disable())
-            .layer(HeaderCsrf)
-            .layer(BucketRatelim::from(ratelim)),
+            .layer(HeaderSizeLim::from(webdata.image.get_max_siz())),
     );
     #[cfg(feature = "serve-files")]
     let r = r.nest_service(
         "/i",
-        tower_http::services::ServeDir::new(image_path).with_buf_chunk_size(256 * 1024),
+        tower_http::services::ServeDir::new(webdata.image.get_base())
+            .with_buf_chunk_size(256 * 1024),
     );
     #[cfg(not(feature = "serve-files"))]
     let r = r.route("/i/{*any}", axum::routing::get(get_file_err));

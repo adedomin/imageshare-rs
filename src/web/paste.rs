@@ -1,0 +1,79 @@
+use std::sync::Arc;
+
+use axum::{
+    Router,
+    extract::{DefaultBodyLimit, State},
+    routing::post,
+};
+use axum_extra::extract::WithRejection;
+use tower::ServiceBuilder;
+
+use crate::{
+    middleware::contentlen::HeaderSizeLim,
+    models::{api::ApiError, webdata::WebData},
+    web::image::{UploadGuard, background_rm_file},
+};
+
+async fn upload_paste(
+    State(webdata): State<Arc<WebData>>,
+    WithRejection(paste, _): WithRejection<String, ApiError>,
+) -> Result<ApiError, ApiError> {
+    let fname = webdata.paste.gen_new_fname("txt");
+    let mut upload = webdata.paste.get_base();
+    upload.push(&fname);
+    // if the file fails beyond this point, it will be stale in the FIFO. oh well.
+    if let Some(del) = webdata.paste.push(&upload) {
+        background_rm_file(del);
+    }
+
+    let fguard = UploadGuard::new(&upload);
+    tokio::fs::write(&upload, paste)
+        .await
+        .map_err(ApiError::new)?;
+    _ = fguard.defuse();
+    Ok(ApiError::new_ok(format!(
+        "{}/p/{fname}",
+        webdata.link_prefix
+    )))
+}
+
+#[cfg(not(feature = "serve-files"))]
+const FILE_ERR_MSG: &str = r###"
+You are expected to use a Reverse Proxy to host imageshare if you disable the `serve-files` feature.
+To serve the /p folder, Please see the example nginx snippet:
+
+```nginx.conf
+# assumes you use the default pastebin path
+location /p/ {
+    add_header X-Content-Type-Options nosniff;
+    root /var/lib/imageshare-rs;
+}
+```
+"###;
+
+#[cfg(not(feature = "serve-files"))]
+async fn get_file_err() -> axum::response::Response {
+    axum::response::Response::builder()
+        .status(http::StatusCode::OK)
+        .header(http::header::CONTENT_TYPE, "text/plain; charset=utf8")
+        .body(FILE_ERR_MSG.into())
+        .unwrap()
+}
+
+pub fn routes(webdata: Arc<WebData>) -> Router<Arc<WebData>> {
+    let lim = webdata.paste.get_max_siz();
+    let r = Router::new().route("/paste", post(upload_paste)).layer(
+        ServiceBuilder::new()
+            .layer(DefaultBodyLimit::max(lim))
+            .layer(HeaderSizeLim::from(lim)),
+    );
+    #[cfg(feature = "serve-files")]
+    let r = r.nest_service(
+        "/p",
+        tower_http::services::ServeDir::new(webdata.paste.get_base())
+            .with_buf_chunk_size(256 * 1024),
+    );
+    #[cfg(not(feature = "serve-files"))]
+    let r = r.route("/p/{*any}", axum::routing::get(get_file_err));
+    r
+}

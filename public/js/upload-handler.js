@@ -160,7 +160,16 @@ function finishedUpload(ev) {
         res = JSON.parse(xhr.responseText);
     }
     catch (e) {
-        return setFailBanner('Your browser blocked the error message for unknown reasons.'); 
+        res = { status: "error", msg: null };
+        if (xhr.status === 413) {
+            res.msg = "Your image is too large!"; 
+        }
+        else if (xhr.status === 0) {
+            res.msg = "Unknown error. Your browser did not process the response.";
+        }
+        else {
+            res.msg = `Unknown error. Did not receive a url for uploaded image. HTTP Code: ${xhr.status}`;
+        }
     }
 
     if (xhr.status != 200 || res.status == 'error') {

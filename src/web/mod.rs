@@ -9,8 +9,13 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tower::ServiceBuilder;
 
-use crate::config::{Config, WebData};
+use crate::{
+    config::Config,
+    middleware::{csrf::HeaderCsrf, ratelim::BucketRatelim},
+    models::webdata::WebData,
+};
 
 mod image;
 mod paste;
@@ -27,7 +32,13 @@ pub fn start_web(
     }
 
     let web = Router::<Arc<WebData>>::new()
-        .merge(image::routes(webdata.image.get_base(), ratelim))
+        .merge(image::routes(webdata.clone()))
+        .merge(paste::routes(webdata.clone()))
+        .layer(
+            ServiceBuilder::new()
+                .layer(HeaderCsrf)
+                .layer(BucketRatelim::from(ratelim)),
+        )
         .merge(static_files::routes())
         .with_state(webdata);
     tokio::spawn(async move {
