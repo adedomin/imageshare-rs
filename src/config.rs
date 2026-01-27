@@ -295,16 +295,16 @@ const EXAMPLE_CONFIG: &str = r###"
     , "siz": 10485760
     , "//": "Max number of files before deleting. default: unlimited."
     , "cnt": 100
-    , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/images or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/images"
-    , "dir": "./uploads/images"
+    , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/i or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/i"
+    , "dir": "./uploads/i"
     }
 , "paste":
     { "//": "Max allowed paste size. Note: pastes are buffered in memory to check for utf8-ness and simplicity."
     , "siz": 65536
     , "//": "Max number of files before deleting. default: unlimited."
     , "cnt": 10000
-    , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/pastes or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/pastes"
-    , "dir": "./uploads/pastes"
+    , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/p or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/p"
+    , "dir": "./uploads/p"
     }
 , "ratelim":
     { "//": "Number of seconds to restore one token."

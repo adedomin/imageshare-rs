@@ -1,7 +1,8 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use axum::Router;
 use tokio::{
+    fs::create_dir_all,
     net::{TcpListener, UnixListener},
     signal::{
         ctrl_c,
@@ -50,6 +51,10 @@ pub fn start_web(
             }
         };
         if let Some(unix) = bind_addr.strip_prefix("unix:") {
+            let unix = PathBuf::from(unix);
+            if let Some(parent) = unix.parent() {
+                _ = create_dir_all(parent).await;
+            }
             let uds = UnixListener::bind(unix)?;
             axum::serve(uds, web)
                 .with_graceful_shutdown(shutdown_h)
