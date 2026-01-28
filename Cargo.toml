@@ -1,5 +1,6 @@
 [package]
 name = "imageshare-rs"
+license = "MIT"
 version = "0.1.0"
 edition = "2024"
 
@@ -12,7 +13,7 @@ include_dir = "0.7"
 tokio = { version = "1", features = ["fs", "net", "rt", "signal", "io-util"] }
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "multipart"] }
 axum-extra = { version = "0.12", default-features = false, features = ["with-rejection"] }
-tower = "0.5"
+tower = { version = "0.5", default-features = false, features = ["util"] }
 tower-http = { version = "0.6", features = ["fs"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -21,13 +22,13 @@ rand = { version = "0.9", default-features = false, features = ["thread_rng"] }
 thiserror = "2"
 governor = { version = "0.10", default-features = false, features = ["std"] }
 http = "1"
-pin-project = "1"
+pin-project-lite = "0.2"
 
 [profile.release]
 lto = "fat"
 codegen-units = 1
-# I want my application to die horribly
-# if I let it unwind the stack, which is probably preferred,
-# tokio's runtime will catch the panic and continue.
+# I want my application to die horribly on panics.
+# Unfortunately hyper catches panics and continues serving.
+# This forces shutdown.
 panic = "abort"
 strip = "debuginfo"

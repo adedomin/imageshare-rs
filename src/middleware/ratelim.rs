@@ -1,3 +1,16 @@
+// Copyright (c) 2026, Anthony DeDominic <adedomin@gmail.com>
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 use axum::{
     extract::{ConnectInfo, Request},
     response::{IntoResponse, Response},
@@ -30,7 +43,7 @@ struct BucketRateLimState {
 
 #[derive(Clone)]
 pub struct BucketRatelim {
-    state: Option<BucketRateLimState>,
+    state: BucketRateLimState,
 }
 
 pub struct BucketStateStore(RandomState, Vec<InMemoryState>);
@@ -55,11 +68,8 @@ impl StateStore for BucketStateStore {
     }
 }
 
-impl From<Option<Ratelim>> for BucketRatelim {
-    fn from(rl: Option<Ratelim>) -> Self {
-        let Some(rl) = rl else {
-            return Self { state: None };
-        };
+impl From<Ratelim> for BucketRatelim {
+    fn from(rl: Ratelim) -> Self {
         let quota = Quota::with_period(rl.secs())
             .expect("ratelim config is always nonzero.")
             .allow_burst(rl.burst());
@@ -70,14 +80,14 @@ impl From<Option<Ratelim>> for BucketRatelim {
                 .collect(),
         );
         Self {
-            state: Some(BucketRateLimState {
+            state: BucketRateLimState {
                 trust_headers: rl.trust_headers(),
                 ratelim: Arc::new(RateLimiter::new(
                     quota,
                     state,
                     governor::clock::MonotonicClock,
                 )),
-            }),
+            },
         }
     }
 }
@@ -85,7 +95,7 @@ impl From<Option<Ratelim>> for BucketRatelim {
 #[derive(Clone)]
 pub struct BucketRatelimMiddle<S> {
     inner: S,
-    state: Option<BucketRateLimState>,
+    state: BucketRateLimState,
 }
 
 impl<S> Layer<S> for BucketRatelim {
@@ -113,36 +123,31 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
-        // if None, disabled.
-        let Some(state) = self.state.take() else {
-            return EarlyRetFut::new_next(self.inner.call(request));
-        };
         let get_ip = || {
             request
                 .extensions()
                 .get::<ConnectInfo<SocketAddr>>()
                 .map(|f| f.ip())
         };
-        let ip = if state.trust_headers {
-            let ip = request
+        let ip = if self.state.trust_headers {
+            request
                 .headers()
                 .get("X-Real-IP")
                 .and_then(|hv| hv.to_str().ok())
-                .and_then(|hv| hv.parse().ok());
-            if ip.is_none() { get_ip() } else { ip }
+                .and_then(|hv| hv.parse().ok())
         } else {
-            get_ip()
+            None
         };
-        let Some(ip) = ip else {
+        let Some(ip) = ip.or_else(get_ip /* fallback */) else {
             return EarlyRetFut::new_early(
                 ApiError::new("X-Real-IP header missing or failed to extract IpAddr from Request.")
                     .into_response(),
             );
         };
 
-        if let Err(not_until) = state.ratelim.check_key(&ip) {
+        if let Err(not_until) = self.state.ratelim.check_key(&ip) {
             // bit weird... especially since NotUntil has a private field start.
-            let start = state.ratelim.clock().now();
+            let start = self.state.ratelim.clock().now();
             let retry_after = not_until.wait_time_from(start).as_secs();
 
             EarlyRetFut::new_early(

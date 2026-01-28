@@ -1,3 +1,16 @@
+// Copyright (c) 2026, Anthony DeDominic <adedomin@gmail.com>
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+// ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+// ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+// OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 use std::{
     collections::VecDeque,
     io::{self, ErrorKind},
@@ -205,11 +218,11 @@ const DEFAULT_BUCKET: usize = 16384;
 
 impl Ratelim {
     pub fn secs(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.secs.map(|nz| nz.get()).unwrap_or(60))
+        std::time::Duration::from_secs(self.secs.map(|nz| nz.get()).unwrap_or(30))
     }
 
     pub fn burst(&self) -> NonZero<u32> {
-        self.burst.unwrap_or(NonZero::new(1u32).unwrap())
+        self.burst.unwrap_or(NonZero::new(3u32).unwrap())
     }
 
     pub fn trust_headers(&self) -> bool {
@@ -224,6 +237,10 @@ impl Ratelim {
     }
 }
 
+fn bind_default() -> String {
+    "[::1]:8146".to_owned()
+}
+
 #[derive(Deserialize)]
 pub struct Config {
     image: Option<StorageSettings<0>>,
@@ -231,20 +248,17 @@ pub struct Config {
     pub ratelim: Option<Ratelim>,
     #[serde(default)]
     pub link_prefix: String,
-    bind: Option<String>,
+    #[serde(default = "bind_default")]
+    bind: String,
 }
 
 impl Config {
     pub fn get_bind_addr(&self) -> String {
-        if let Some(b) = self.bind.as_ref() {
-            if let Some(rtdir) = b.strip_prefix("rt-dir:") {
-                let socket_base = find_systemd_or_xdg_path(rt::BASE, rt::USER, rt::FALLBACK, rtdir);
-                format!("unix:{}", socket_base.to_string_lossy())
-            } else {
-                b.clone()
-            }
+        if let Some(rtdir) = self.bind.strip_prefix("rt-dir:") {
+            let socket_base = find_systemd_or_xdg_path(rt::BASE, rt::USER, rt::FALLBACK, rtdir);
+            format!("unix:{}", socket_base.to_string_lossy())
         } else {
-            "[::1]:8146".to_owned()
+            self.bind.clone()
         }
     }
 
