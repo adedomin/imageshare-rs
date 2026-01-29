@@ -17,7 +17,8 @@ use axum::{
 };
 use governor::{
     Quota, RateLimiter,
-    clock::Clock,
+    clock::{Clock, MonotonicClock},
+    nanos::Nanos,
     state::{InMemoryState, NotKeyed, StateStore},
 };
 use http::{StatusCode, header::RETRY_AFTER};
@@ -38,7 +39,7 @@ use crate::{
 #[derive(Clone)]
 struct BucketRateLimState {
     trust_headers: bool,
-    ratelim: Arc<RateLimiter<IpAddr, BucketStateStore, governor::clock::MonotonicClock>>,
+    ratelim: Arc<RateLimiter<IpAddr, BucketStateStore, MonotonicClock>>,
 }
 
 #[derive(Clone)]
@@ -53,7 +54,7 @@ impl StateStore for BucketStateStore {
 
     fn measure_and_replace<T, F, E>(&self, key: &Self::Key, f: F) -> Result<T, E>
     where
-        F: Fn(Option<governor::nanos::Nanos>) -> Result<(T, governor::nanos::Nanos), E>,
+        F: Fn(Option<Nanos>) -> Result<(T, Nanos), E>,
     {
         let ip_partial = match key.to_canonical() {
             IpAddr::V4(ipv4) => u64::from(ipv4.to_bits()),
@@ -82,11 +83,7 @@ impl From<Ratelim> for BucketRatelim {
         Self {
             state: BucketRateLimState {
                 trust_headers: rl.trust_headers(),
-                ratelim: Arc::new(RateLimiter::new(
-                    quota,
-                    state,
-                    governor::clock::MonotonicClock,
-                )),
+                ratelim: Arc::new(RateLimiter::new(quota, state, MonotonicClock)),
             },
         }
     }
