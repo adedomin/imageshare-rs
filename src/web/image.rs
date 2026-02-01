@@ -80,10 +80,10 @@ async fn det_ext(f: &mut Field<'_>) -> Result<(Bytes, &'static str), ApiError> {
     }
 }
 
-fn payload_too_large(lim: usize) -> ApiError {
+pub fn payload_too_large(typ: &'static str, lim: usize) -> ApiError {
     ApiError::new_with_status(
         StatusCode::PAYLOAD_TOO_LARGE,
-        format!("Your image is too large! limit: {lim} bytes."),
+        format!("Your {typ} is too large! limit: {lim} bytes."),
     )
 }
 
@@ -91,7 +91,7 @@ async fn upload_img(
     State(webdata): State<Arc<WebData>>,
     mut multipart: Multipart,
 ) -> Result<ApiError, ApiError> {
-    if let Some(mut field) = multipart.next_field().await.map_err(ApiError::new)? {
+    if let Some(mut field) = multipart.next_field().await? {
         let (initial_read, ext) = det_ext(&mut field).await?;
         let fname = webdata.image.gen_new_fname(ext);
         let mut upload = webdata.image.get_base();
@@ -106,18 +106,18 @@ async fn upload_img(
             let max_siz = webdata.image.get_max_siz();
             let mut written: usize = 0;
             // if we collide with file names, better to just overwrite.
-            let mut file = BufWriter::new(File::create(&upload).await.map_err(ApiError::new)?);
+            let mut file = BufWriter::new(File::create(&upload).await?);
             // write our mime detect read.
             written += initial_read.len();
-            file.write_all(&initial_read).await.map_err(ApiError::new)?;
-            while let Some(chunk) = field.chunk().await.map_err(ApiError::new)? {
+            file.write_all(&initial_read).await?;
+            while let Some(chunk) = field.chunk().await? {
                 written += chunk.len();
                 // Technically forms can be sent with Transfer-Encoding: chunked.
                 // So we must guard against large reads.
                 if written > max_siz {
-                    return Err(payload_too_large(max_siz));
+                    return Err(payload_too_large("image", max_siz));
                 }
-                file.write_all(&chunk).await.map_err(ApiError::new)?;
+                file.write_all(&chunk).await?;
             }
             _ = file.flush().await;
         }

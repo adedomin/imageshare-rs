@@ -13,7 +13,10 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 use std::fmt::Display;
 
-use axum::{extract::rejection::StringRejection, response::IntoResponse};
+use axum::{
+    extract::{multipart::MultipartError, rejection::StringRejection},
+    response::IntoResponse,
+};
 use http::{HeaderName, HeaderValue, Response, StatusCode, header::CONTENT_TYPE};
 use serde::Serialize;
 
@@ -68,6 +71,19 @@ impl ApiError {
 impl From<StringRejection> for ApiError {
     fn from(value: StringRejection) -> Self {
         ApiError::new_with_status(value.status(), value)
+    }
+}
+
+impl From<std::io::Error> for ApiError {
+    fn from(e: std::io::Error) -> Self {
+        eprintln!("ERR: unexpected I/O error: {e}");
+        Self::new(e)
+    }
+}
+
+impl From<MultipartError> for ApiError {
+    fn from(e: MultipartError) -> Self {
+        Self::new(e)
     }
 }
 

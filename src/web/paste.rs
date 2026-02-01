@@ -15,22 +15,33 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    extract::{DefaultBodyLimit, State},
+    extract::{DefaultBodyLimit, State, rejection::StringRejection},
     routing::post,
 };
-use axum_extra::extract::WithRejection;
+use http::StatusCode;
 use tower::ServiceBuilder;
 
 use crate::{
     middleware::contentlen::HeaderSizeLim,
     models::{api::ApiError, webdata::WebData},
-    web::image::{UploadGuard, background_rm_file},
+    web::image::{UploadGuard, background_rm_file, payload_too_large},
 };
+
+fn handle_paste(r: Result<String, StringRejection>, lim: usize) -> Result<String, ApiError> {
+    match r {
+        Ok(paste) => Ok(paste),
+        Err(e) if e.status() == StatusCode::PAYLOAD_TOO_LARGE => {
+            Err(payload_too_large("paste", lim))
+        }
+        Err(e) => Err(e.into()),
+    }
+}
 
 async fn upload_paste(
     State(webdata): State<Arc<WebData>>,
-    WithRejection(paste, _): WithRejection<String, ApiError>,
+    paste: Result<String, StringRejection>,
 ) -> Result<ApiError, ApiError> {
+    let paste = handle_paste(paste, webdata.paste.get_max_siz())?;
     let fname = webdata.paste.gen_new_fname("txt");
     let mut upload = webdata.paste.get_base();
     upload.push(&fname);
@@ -40,9 +51,7 @@ async fn upload_paste(
     }
 
     let fguard = UploadGuard::new(&upload);
-    tokio::fs::write(&upload, paste)
-        .await
-        .map_err(ApiError::new)?;
+    tokio::fs::write(&upload, paste).await?;
     _ = fguard.defuse();
     Ok(ApiError::new_ok(format!(
         "{}/p/{fname}",
