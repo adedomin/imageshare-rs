@@ -23,7 +23,6 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tower::ServiceBuilder;
 
 use crate::{
     config::Config,
@@ -55,19 +54,15 @@ pub enum WebErr {
 
 pub fn start_web(mut config: Config, webdata: Arc<WebData>) -> JoinHandle<Result<(), WebErr>> {
     let bind_addr = config.get_bind_addr();
-    let ratelim = config.ratelim.take();
+    let ratelim = config.ratelim.take().map(BucketRatelim::from);
     if !config.link_prefix.is_empty() {
         println!("Listening on {}", config.link_prefix);
     }
 
     let web = Router::<Arc<WebData>>::new()
-        .merge(image::routes(webdata.clone()))
-        .merge(paste::routes(webdata.clone()))
-        .layer(
-            ServiceBuilder::new()
-                .layer(HeaderCsrf)
-                .option_layer(ratelim.map(BucketRatelim::from)),
-        )
+        .merge(image::routes(webdata.clone(), ratelim.clone()))
+        .merge(paste::routes(webdata.clone(), ratelim))
+        .layer(HeaderCsrf)
         .merge(static_files::routes())
         .with_state(webdata);
     tokio::spawn(async move {

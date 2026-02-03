@@ -15,11 +15,11 @@ pin_project! {
     }
 }
 
-impl<I, E> Future for Utf8TextPlainFut<I>
+impl<I, E, ResBody> Future for Utf8TextPlainFut<I>
 where
-    I: Future<Output = Result<Response, E>>,
+    I: Future<Output = Result<Response<ResBody>, E>>,
 {
-    type Output = Result<Response, E>;
+    type Output = Result<Response<ResBody>, E>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -53,9 +53,9 @@ impl<S> Layer<S> for Utf8TextPlain {
     }
 }
 
-impl<S> Service<Request> for Utf8TextPlainService<S>
+impl<S, ResBody> Service<Request> for Utf8TextPlainService<S>
 where
-    S: Service<Request, Response = Response> + Send + 'static,
+    S: Service<Request, Response = Response<ResBody>> + Send + 'static,
     S::Future: Send + 'static,
 {
     type Response = S::Response;

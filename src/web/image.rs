@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
 use crate::middleware::contentlen::HeaderSizeLim;
+use crate::middleware::ratelim::BucketRatelim;
 use crate::models::webdata::WebData;
 use crate::models::{api::ApiError, mime::detect_ext};
 use axum::{
@@ -157,11 +158,12 @@ async fn get_file_err() -> axum::response::Response {
         .unwrap()
 }
 
-pub fn routes(webdata: Arc<WebData>) -> Router<Arc<WebData>> {
+pub fn routes(webdata: Arc<WebData>, ratelim: Option<BucketRatelim>) -> Router<Arc<WebData>> {
     let r = Router::new().route("/upload", post(upload_img)).layer(
         ServiceBuilder::new()
             .layer(DefaultBodyLimit::disable())
-            .layer(HeaderSizeLim::from(webdata.image.get_max_siz())),
+            .layer(HeaderSizeLim::from(webdata.image.get_max_siz()))
+            .option_layer(ratelim),
     );
     #[cfg(feature = "serve-files")]
     let r = r.nest_service(

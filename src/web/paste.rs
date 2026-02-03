@@ -24,7 +24,7 @@ use tower::ServiceBuilder;
 #[cfg(feature = "serve-files")]
 use crate::middleware::utf8textplain::Utf8TextPlain;
 use crate::{
-    middleware::contentlen::HeaderSizeLim,
+    middleware::{contentlen::HeaderSizeLim, ratelim::BucketRatelim},
     models::{api::ApiError, webdata::WebData},
     web::image::{UploadGuard, background_rm_file, payload_too_large},
 };
@@ -84,21 +84,22 @@ async fn get_file_err() -> axum::response::Response {
         .unwrap()
 }
 
-pub fn routes(webdata: Arc<WebData>) -> Router<Arc<WebData>> {
+pub fn routes(webdata: Arc<WebData>, ratelim: Option<BucketRatelim>) -> Router<Arc<WebData>> {
     let lim = webdata.paste.get_max_siz();
     let r = Router::new().route("/paste", post(upload_paste)).layer(
         ServiceBuilder::new()
             .layer(DefaultBodyLimit::max(lim))
-            .layer(HeaderSizeLim::from(lim)),
+            .layer(HeaderSizeLim::from(lim))
+            .option_layer(ratelim),
     );
     #[cfg(feature = "serve-files")]
-    let r = r
-        .nest_service(
-            "/p",
+    let r = r.nest_service(
+        "/p",
+        ServiceBuilder::new().layer(Utf8TextPlain).service(
             tower_http::services::ServeDir::new(webdata.paste.get_base())
                 .with_buf_chunk_size(256 * 1024),
-        )
-        .layer(Utf8TextPlain);
+        ),
+    );
     #[cfg(not(feature = "serve-files"))]
     let r = r.route("/p/{*any}", axum::routing::get(get_file_err));
     r
