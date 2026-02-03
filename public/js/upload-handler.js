@@ -14,13 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-
 'use strict';
-let banner = document.getElementById('banner-color');
-let statusMsg = document.getElementById('status-mesg');
-let files = document.getElementById('file');
-let dropzone = document.getElementById('dropzone');
-let submit = document.getElementById('submit');
+
+const banner = document.getElementById('banner-color');
+const statusMsg = document.getElementById('status-mesg');
+const files = document.getElementById('file');
+const dropzone = document.getElementById('dropzone');
+const submit = document.getElementById('submit');
+
+const xhrExt = Symbol("xhr-ext");
 
 function setInfo(message) {
     statusMsg.textContent = message;
@@ -45,7 +47,7 @@ function setSuccessBanner(message) {
 
 function createImageFigure(file) {
     const isVideo = file.type.indexOf('video') == 0;
-    let imgEl = document.createElement(
+    const imgEl = document.createElement(
         isVideo ? 'video' : 'img',
     );
     imgEl.src = URL.createObjectURL(file);
@@ -62,13 +64,13 @@ function createImageFigure(file) {
         });
     }
     
-    let figureEl = document.createElement('figure');
+    const figureEl = document.createElement('figure');
     figureEl.classList.add('image');
     figureEl.classList.add('is-128x128');
     figureEl.style.overflow = 'hidden';
     figureEl.appendChild(imgEl);
 
-    let box = document.createElement('div');
+    const box = document.createElement('div');
     box.classList.add('media-left');
     box.appendChild(figureEl);
     
@@ -76,11 +78,11 @@ function createImageFigure(file) {
 }
 
 function createFileBox(file, xhr) {
-    let url = document.createElement('a');
+    const url = document.createElement('a');
     url.href = '';
     url.textContent = `Uploading ${file.name}...`;
 
-    let copyUrlButton = document.createElement('button');
+    const copyUrlButton = document.createElement('button');
     copyUrlButton.classList.add('button');
     copyUrlButton.textContent = 'Copy to clipboard';
     copyUrlButton.dataset.wasClicked = false;
@@ -116,43 +118,40 @@ function createFileBox(file, xhr) {
         document.body.removeChild(fakeInput);
     });
 
-    let contentBox = document.createElement('p');
+    const contentBox = document.createElement('p');
     contentBox.classList.add('has-text-centered');
     contentBox.appendChild(url);
     contentBox.appendChild(document.createElement('br'));
     contentBox.appendChild(copyUrlButton);
 
-    let contentContentBox = document.createElement('div');
+    const contentContentBox = document.createElement('div');
     contentContentBox.classList.add('content');
     contentContentBox.appendChild(contentBox);
 
-    let contentContainer = document.createElement('div');
+    const contentContainer = document.createElement('div');
     contentContainer.classList.add('media-content');
     contentContainer.appendChild(contentContentBox);
 
-    let mediaContainer = document.createElement('div');
+    const mediaContainer = document.createElement('div');
     mediaContainer.classList.add('media');
     mediaContainer.appendChild(createImageFigure(file));
     mediaContainer.appendChild(contentContainer);
 
-    let box = document.createElement('div');
+    const box = document.createElement('div');
     box.classList.add('box');
     box.classList.add('column');
     box.classList.add('is-6');
     box.style.padding='5px';
     box.appendChild(mediaContainer);
 
-    xhr.imageUrl = url;
-
-    return box;
+    return { box, url };
 }
 
 function finishedUpload(ev) {
     dropzone.textContent = 'Select or Drop Files';
 
-    let xhr = ev.target;
-    let { box } = xhr.box;
-    let url = xhr.imageUrl;
+    const xhr = ev.target;
+    const { box, url }  = xhr[xhrExt];
 
     let res;
 
@@ -180,12 +179,12 @@ function finishedUpload(ev) {
     url.href = res.msg;
     url.textContent = res.msg;
     setSuccessBanner('Successfully Uploaded');
-    document.getElementById('uploads').appendChild(xhr.box);
+    document.getElementById('uploads').appendChild(box);
 }
 
 let movingDotPos = -1;
 function incrementProgress(el) {
-    let dots = ['.', '.', '.', '.', '.', '.', '.'];
+    const dots = ['.', '.', '.', '.', '.', '.', '.'];
     movingDotPos = (movingDotPos + 1) % dots.length;
     dots[movingDotPos] = 'o';
 
@@ -205,13 +204,13 @@ function handleFile(file) {
         return setFailBanner('You can only upload images or videos');
     }
 
-    let xhr = new XMLHttpRequest();
+    const xhr = new XMLHttpRequest();
     xhr.open('POST', './upload');
     xhr.upload.addEventListener('progress', incrementProgress);
     xhr.addEventListener('loadend', finishedUpload);
-    xhr.box = createFileBox(file, xhr);
+    xhr[xhrExt] = createFileBox(file, xhr);
 
-    let form = new FormData();
+    const form = new FormData();
     form.append('file', file);
     xhr.send(form);
 
@@ -231,7 +230,7 @@ function uploadFile(el) {
 
 function dropHandle(el) {
     el.preventDefault();
-    let data = el.dataTransfer;
+    const data = el.dataTransfer;
     if (data.files) Array.prototype.forEach.call(data.files, handleFile);
     submit.disabled = true;
 }

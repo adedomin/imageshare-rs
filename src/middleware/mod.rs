@@ -15,3 +15,5 @@ pub mod contentlen;
 pub mod csrf;
 mod futs;
 pub mod ratelim;
+#[cfg(feature = "serve-files")]
+pub mod utf8textplain;

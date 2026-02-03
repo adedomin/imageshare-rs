@@ -21,6 +21,8 @@ use axum::{
 use http::StatusCode;
 use tower::ServiceBuilder;
 
+#[cfg(feature = "serve-files")]
+use crate::middleware::utf8textplain::Utf8TextPlain;
 use crate::{
     middleware::contentlen::HeaderSizeLim,
     models::{api::ApiError, webdata::WebData},
@@ -67,7 +69,7 @@ To serve the /p folder, Please see the example nginx snippet:
 ```nginx.conf
 # assumes you use the default pastebin path
 location /p/ {
-    add_header X-Content-Type-Options nosniff;
+    types { "text/plain; charset=utf-8" txt; }
     root /var/lib/imageshare-rs;
 }
 ```
@@ -90,11 +92,13 @@ pub fn routes(webdata: Arc<WebData>) -> Router<Arc<WebData>> {
             .layer(HeaderSizeLim::from(lim)),
     );
     #[cfg(feature = "serve-files")]
-    let r = r.nest_service(
-        "/p",
-        tower_http::services::ServeDir::new(webdata.paste.get_base())
-            .with_buf_chunk_size(256 * 1024),
-    );
+    let r = r
+        .nest_service(
+            "/p",
+            tower_http::services::ServeDir::new(webdata.paste.get_base())
+                .with_buf_chunk_size(256 * 1024),
+        )
+        .layer(Utf8TextPlain);
     #[cfg(not(feature = "serve-files"))]
     let r = r.route("/p/{*any}", axum::routing::get(get_file_err));
     r
