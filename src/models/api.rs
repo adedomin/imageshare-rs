@@ -30,10 +30,8 @@ pub struct ApiError {
 
 const FALLBACK: &[u8] = br##"{ "status": "critical", "msg": "failed to serialize api message." }"##;
 
-pub const JSON_TYPE: (HeaderName, HeaderValue) = (
-    CONTENT_TYPE,
-    HeaderValue::from_static("application/json; charset=utf-8"),
-);
+pub const JSON_TYPE: (HeaderName, HeaderValue) =
+    (CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
 impl ApiError {
     pub fn new<T: Display>(msg: T) -> Self {

@@ -11,7 +11,7 @@
 // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use axum::{
     Router,
@@ -24,7 +24,7 @@ use tower::ServiceBuilder;
 #[cfg(feature = "serve-files")]
 use crate::middleware::utf8textplain::Utf8TextPlain;
 use crate::{
-    middleware::{contentlen::HeaderSizeLim, ratelim::BucketRatelim},
+    middleware::contentlen::HeaderSizeLim,
     models::{api::ApiError, webdata::WebData},
     web::image::{UploadGuard, background_rm_file, payload_too_large},
 };
@@ -84,21 +84,22 @@ async fn get_file_err() -> axum::response::Response {
         .unwrap()
 }
 
-pub fn routes(webdata: Arc<WebData>, ratelim: Option<BucketRatelim>) -> Router<Arc<WebData>> {
-    let lim = webdata.paste.get_max_siz();
-    let r = Router::new().route("/paste", post(upload_paste)).layer(
+pub fn upload_route(lim: usize) -> Router<Arc<WebData>> {
+    Router::new().route("/paste", post(upload_paste)).layer(
         ServiceBuilder::new()
             .layer(DefaultBodyLimit::max(lim))
-            .layer(HeaderSizeLim::from(lim))
-            .option_layer(ratelim),
-    );
+            .layer(HeaderSizeLim::from(lim)),
+    )
+}
+
+pub fn serve_route<P: AsRef<Path>>(_p: P) -> Router<Arc<WebData>> {
+    let r = Router::new();
     #[cfg(feature = "serve-files")]
     let r = r.nest_service(
         "/p",
-        ServiceBuilder::new().layer(Utf8TextPlain).service(
-            tower_http::services::ServeDir::new(webdata.paste.get_base())
-                .with_buf_chunk_size(256 * 1024),
-        ),
+        ServiceBuilder::new()
+            .layer(Utf8TextPlain)
+            .service(tower_http::services::ServeDir::new(_p).with_buf_chunk_size(256 * 1024)),
     );
     #[cfg(not(feature = "serve-files"))]
     let r = r.route("/p/{*any}", axum::routing::get(get_file_err));

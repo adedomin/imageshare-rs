@@ -23,6 +23,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tower::ServiceBuilder;
 
 use crate::{
     config::Config,
@@ -60,9 +61,15 @@ pub fn start_web(mut config: Config, webdata: Arc<WebData>) -> JoinHandle<Result
     }
 
     let web = Router::<Arc<WebData>>::new()
-        .merge(image::routes(webdata.clone(), ratelim.clone()))
-        .merge(paste::routes(webdata.clone(), ratelim))
-        .layer(HeaderCsrf)
+        .merge(image::upload_route(webdata.image.get_max_siz()))
+        .merge(paste::upload_route(webdata.paste.get_max_siz()))
+        .layer(
+            ServiceBuilder::new()
+                .layer(HeaderCsrf)
+                .option_layer(ratelim),
+        )
+        .merge(image::serve_route(webdata.image.get_base()))
+        .merge(paste::serve_route(webdata.paste.get_base()))
         .merge(static_files::routes())
         .with_state(webdata);
     tokio::spawn(async move {
