@@ -23,7 +23,7 @@ use http::{
 };
 use tower::{Layer, Service};
 
-use crate::{middleware::futs::EarlyRetFut, models::api::ApiError};
+use crate::{middleware::earlyretfut::EarlyRetFut, models::api::ApiError};
 
 const SEC_FETCH_SITE: &str = "Sec-Fetch-Site";
 const SEC_FETCH_SITE_ALLOWED: &str = "same-origin";
@@ -90,6 +90,7 @@ where
                 return EarlyRetFut::new_early(
                     ApiError::new_with_status(StatusCode::FORBIDDEN, "CSRF failure.")
                         .into_response(),
+                    req.into_body().into_data_stream(),
                 );
             }
         }

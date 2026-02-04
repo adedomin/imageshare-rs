@@ -32,7 +32,7 @@ use tower::{Layer, Service};
 
 use crate::{
     config::Ratelim,
-    middleware::futs::EarlyRetFut,
+    middleware::earlyretfut::EarlyRetFut,
     models::api::{ApiError, JSON_TYPE},
 };
 
@@ -119,16 +119,14 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, request: Request) -> Self::Future {
+    fn call(&mut self, req: Request) -> Self::Future {
         let get_ip = || {
-            request
-                .extensions()
+            req.extensions()
                 .get::<ConnectInfo<SocketAddr>>()
                 .map(|f| f.ip())
         };
         let ip = if self.state.trust_headers {
-            request
-                .headers()
+            req.headers()
                 .get("X-Real-IP")
                 .and_then(|hv| hv.to_str().ok())
                 .and_then(|hv| hv.parse().ok())
@@ -137,8 +135,9 @@ where
         };
         let Some(ip) = ip.or_else(get_ip /* fallback */) else {
             return EarlyRetFut::new_early(
-                ApiError::new("X-Real-IP header missing or failed to extract IpAddr from Request.")
+                ApiError::new("X-Real-IP header missing or failed to extract IpAddr from req.")
                     .into_response(),
+                req.into_body().into_data_stream(),
             );
         };
 
@@ -158,9 +157,10 @@ where
                             .into(),
                     )
                     .unwrap(),
+                req.into_body().into_data_stream(),
             )
         } else {
-            EarlyRetFut::new_next(self.inner.call(request))
+            EarlyRetFut::new_next(self.inner.call(req))
         }
     }
 }

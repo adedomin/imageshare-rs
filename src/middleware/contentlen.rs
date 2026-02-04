@@ -20,7 +20,7 @@ use axum::{
 use http::{HeaderMap, StatusCode, header::CONTENT_LENGTH};
 use tower::{Layer, Service};
 
-use crate::{middleware::futs::EarlyRetFut, models::api::ApiError};
+use crate::{middleware::earlyretfut::EarlyRetFut, models::api::ApiError};
 
 /// A Tower Layer that checks HTTP Header Content-Length and rejects requests that are too large.
 #[derive(Clone)]
@@ -90,6 +90,7 @@ where
                         format!("Your request is too large! limit {lim} bytes."),
                     )
                     .into_response(),
+                    req.into_body().into_data_stream(),
                 );
             }
         }

@@ -81,10 +81,9 @@ async fn det_ext(f: &mut Field<'_>) -> Result<(Bytes, &'static str), ApiError> {
 }
 
 pub fn payload_too_large(typ: &'static str, lim: usize) -> ApiError {
-    ApiError::new_with_status(
-        StatusCode::PAYLOAD_TOO_LARGE,
-        format!("Your {typ} is too large! limit: {lim} bytes."),
-    )
+    ApiError::new(format!("Your {typ} is too large! limit: {lim} bytes."))
+        .status(StatusCode::PAYLOAD_TOO_LARGE)
+        .close_conn()
 }
 
 async fn upload_img(
