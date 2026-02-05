@@ -90,19 +90,26 @@ async fn upload_img(
     State(webdata): State<Arc<WebData>>,
     mut multipart: Multipart,
 ) -> Result<ApiError, ApiError> {
+    // we only read ONE field.
+    // if more are provided, connection will be dropped with pending data.
     if let Some(mut field) = multipart.next_field().await? {
+        let WebData {
+            link_prefix,
+            image: storage,
+            ..
+        } = webdata.as_ref();
         let (initial_read, ext) = det_ext(&mut field).await?;
-        let fname = webdata.image.gen_new_fname(ext);
-        let mut upload = webdata.image.get_base();
+        let fname = storage.gen_new_fname(ext);
+        let mut upload = storage.get_base();
         upload.push(&fname);
         // if the file fails beyond this point, it will be stale in the FIFO. oh well.
-        if let Some(del) = webdata.image.push(&upload) {
+        if let Some(del) = storage.push(&upload) {
             background_rm_file(del);
         }
 
         let fguard = UploadGuard::new(&upload);
         {
-            let max_siz = webdata.image.get_max_siz();
+            let max_siz = storage.get_max_siz();
             let mut written: usize = 0;
             // if we collide with file names, better to just overwrite.
             let mut file = BufWriter::new(File::create(&upload).await?);
@@ -121,10 +128,7 @@ async fn upload_img(
             _ = file.flush().await;
         }
         _ = fguard.defuse();
-        Ok(ApiError::new_ok(format!(
-            "{}/i/{fname}",
-            webdata.link_prefix
-        )))
+        Ok(ApiError::new_ok(format!("{link_prefix}/i/{fname}")))
     } else {
         Err(ApiError::new_with_status(
             StatusCode::BAD_REQUEST,

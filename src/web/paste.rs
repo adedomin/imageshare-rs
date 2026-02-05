@@ -43,22 +43,24 @@ async fn upload_paste(
     State(webdata): State<Arc<WebData>>,
     paste: Result<String, StringRejection>,
 ) -> Result<ApiError, ApiError> {
-    let paste = handle_paste(paste, webdata.paste.get_max_siz())?;
-    let fname = webdata.paste.gen_new_fname("txt");
-    let mut upload = webdata.paste.get_base();
+    let WebData {
+        link_prefix,
+        paste: storage,
+        ..
+    } = webdata.as_ref();
+    let paste = handle_paste(paste, storage.get_max_siz())?;
+    let fname = storage.gen_new_fname("txt");
+    let mut upload = storage.get_base();
     upload.push(&fname);
     // if the file fails beyond this point, it will be stale in the FIFO. oh well.
-    if let Some(del) = webdata.paste.push(&upload) {
+    if let Some(del) = storage.push(&upload) {
         background_rm_file(del);
     }
 
     let fguard = UploadGuard::new(&upload);
     tokio::fs::write(&upload, paste).await?;
     _ = fguard.defuse();
-    Ok(ApiError::new_ok(format!(
-        "{}/p/{fname}",
-        webdata.link_prefix
-    )))
+    Ok(ApiError::new_ok(format!("{link_prefix}/p/{fname}")))
 }
 
 #[cfg(not(feature = "serve-files"))]
