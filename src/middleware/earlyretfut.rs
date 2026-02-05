@@ -23,8 +23,6 @@ use axum::{
 use http::{HeaderValue, header::CONNECTION};
 use pin_project_lite::pin_project;
 
-// use crate::middleware::contentlen::get_len;
-
 pin_project! {
     pub struct EarlyRetFut<I> {
         #[pin]
@@ -81,7 +79,6 @@ where
                 resp,
                 mut body,
                 read,
-                // lim,
             } => {
                 // To prevent TCP|UDS connection reset issues, we should consume the body.
                 let mut done = false;
