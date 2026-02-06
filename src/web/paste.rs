@@ -33,7 +33,7 @@ fn handle_paste(r: Result<String, StringRejection>, lim: usize) -> Result<String
     match r {
         Ok(paste) => Ok(paste),
         Err(e) if e.status() == StatusCode::PAYLOAD_TOO_LARGE => {
-            Err(payload_too_large("paste", lim))
+            Err(payload_too_large("paste", lim, true))
         }
         Err(e) => Err(e.into()),
     }
@@ -59,7 +59,7 @@ async fn upload_paste(
 
     let fguard = UploadGuard::new(&upload);
     tokio::fs::write(&upload, paste).await?;
-    _ = fguard.defuse();
+    fguard.defuse();
     Ok(ApiError::new_ok(format!("{link_prefix}/p/{fname}")))
 }
 

@@ -13,10 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 use std::fmt::Display;
 
-use axum::{
-    extract::{multipart::MultipartError, rejection::StringRejection},
-    response::IntoResponse,
-};
+use axum::{extract::rejection::StringRejection, response::IntoResponse};
 use http::{
     HeaderName, HeaderValue, Response, StatusCode,
     header::{CONNECTION, CONTENT_TYPE},
@@ -77,6 +74,10 @@ impl ApiError {
         }
     }
 
+    pub fn should_close_conn(self, close: bool) -> Self {
+        Self { close, ..self }
+    }
+
     pub fn to_json(&self) -> Vec<u8> {
         match serde_json::to_vec(&self) {
             Ok(ok) => ok,
@@ -94,12 +95,6 @@ impl From<StringRejection> for ApiError {
 impl From<std::io::Error> for ApiError {
     fn from(e: std::io::Error) -> Self {
         eprintln!("ERR: unexpected I/O error: {e}");
-        Self::new(e).close_conn()
-    }
-}
-
-impl From<MultipartError> for ApiError {
-    fn from(e: MultipartError) -> Self {
         Self::new(e).close_conn()
     }
 }

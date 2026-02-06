@@ -209,11 +209,7 @@ function handleFile(file) {
     xhr.upload.addEventListener('progress', incrementProgress);
     xhr.addEventListener('loadend', finishedUpload);
     xhr[xhrExt] = createFileBox(file, xhr);
-
-    const form = new FormData();
-    form.append('file', file);
-    xhr.send(form);
-
+    xhr.send(file);
 }
 
 function changeFileLabel(el) {

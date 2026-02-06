@@ -15,15 +15,18 @@ use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
 use crate::middleware::contentlen::HeaderSizeLim;
+use crate::middleware::earlyretfut::ConsumeBody;
 use crate::models::webdata::WebData;
 use crate::models::{api::ApiError, mime::detect_ext};
+use axum::body::{Body, BodyDataStream};
 use axum::{
     Router,
     body::Bytes,
-    extract::{DefaultBodyLimit, Multipart, State, multipart::Field},
+    extract::{DefaultBodyLimit, State},
     http::StatusCode,
     routing::post,
 };
+use futures_util::stream::StreamExt;
 use tokio::{
     fs::File,
     io::{AsyncWriteExt, BufWriter},
@@ -47,8 +50,8 @@ impl<'a> UploadGuard<'a> {
         }
     }
 
-    pub fn defuse(mut self) -> &'a Path {
-        self.inner.take().unwrap()
+    pub fn defuse(mut self) {
+        _ = self.inner.take();
     }
 }
 
@@ -60,81 +63,76 @@ impl<'a> Drop for UploadGuard<'a> {
     }
 }
 
-async fn det_ext(f: &mut Field<'_>) -> Result<(Bytes, &'static str), ApiError> {
-    let initial = f
-        .chunk()
+async fn get_ext(
+    mut body: BodyDataStream,
+) -> Result<(BodyDataStream, Bytes, &'static str), ApiError> {
+    let initial = body
+        .next()
         .await
-        .map_err(ApiError::new)?
         .ok_or(ApiError::new_with_status(
             StatusCode::UNPROCESSABLE_ENTITY,
             "No bytes read.",
-        ))?;
-    // if somehow chunk returns less than 12 bytes, we should reject this request on principle of it being too slow.
+        ))?
+        .map_err(ApiError::new)?;
+    // If we read less than 12 bytes, we should reject this request on principle of it being too slow or weird.
     if let Some(ext) = detect_ext(&initial) {
-        Ok((initial, ext))
+        Ok((body, initial, ext))
     } else {
+        // attempt to consume rest of body.
+        let done = ConsumeBody::new(body).await;
         Err(ApiError::new_with_status(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "Only images and videos are supported.",
-        ))
+            "Unsupported image or video format.",
+        )
+        .should_close_conn(!done))
     }
 }
 
-pub fn payload_too_large(typ: &'static str, lim: usize) -> ApiError {
+pub fn payload_too_large(typ: &'static str, lim: usize, close: bool) -> ApiError {
     ApiError::new(format!("Your {typ} is too large! limit: {lim} bytes."))
         .status(StatusCode::PAYLOAD_TOO_LARGE)
-        .close_conn()
+        .should_close_conn(close)
 }
 
-async fn upload_img(
-    State(webdata): State<Arc<WebData>>,
-    mut multipart: Multipart,
-) -> Result<ApiError, ApiError> {
-    // we only read ONE field.
-    // if more are provided, connection will be dropped with pending data.
-    if let Some(mut field) = multipart.next_field().await? {
-        let WebData {
-            link_prefix,
-            image: storage,
-            ..
-        } = webdata.as_ref();
-        let (initial_read, ext) = det_ext(&mut field).await?;
-        let fname = storage.gen_new_fname(ext);
-        let mut upload = storage.get_base();
-        upload.push(&fname);
-        // if the file fails beyond this point, it will be stale in the FIFO. oh well.
-        if let Some(del) = storage.push(&upload) {
-            background_rm_file(del);
-        }
-
-        let fguard = UploadGuard::new(&upload);
-        {
-            let max_siz = storage.get_max_siz();
-            let mut written: usize = 0;
-            // if we collide with file names, better to just overwrite.
-            let mut file = BufWriter::new(File::create(&upload).await?);
-            // write our mime detect read.
-            written += initial_read.len();
-            file.write_all(&initial_read).await?;
-            while let Some(chunk) = field.chunk().await? {
-                written += chunk.len();
-                // Technically forms can be sent with Transfer-Encoding: chunked.
-                // So we must guard against large reads.
-                if written > max_siz {
-                    return Err(payload_too_large("image", max_siz));
-                }
-                file.write_all(&chunk).await?;
-            }
-            _ = file.flush().await;
-        }
-        _ = fguard.defuse();
-        Ok(ApiError::new_ok(format!("{link_prefix}/i/{fname}")))
-    } else {
-        Err(ApiError::new_with_status(
-            StatusCode::BAD_REQUEST,
-            "No fields.",
-        ))
+async fn upload_img(State(webdata): State<Arc<WebData>>, body: Body) -> Result<ApiError, ApiError> {
+    let WebData {
+        link_prefix,
+        image: storage,
+        ..
+    } = webdata.as_ref();
+    let (mut body, initial_read, ext) = get_ext(body.into_data_stream()).await?;
+    let fname = storage.gen_new_fname(ext);
+    let mut upload = storage.get_base();
+    upload.push(&fname);
+    // if the file fails beyond this point, it will be stale in the FIFO. oh well.
+    if let Some(del) = storage.push(&upload) {
+        background_rm_file(del);
     }
+
+    let fguard = UploadGuard::new(&upload);
+    {
+        let max_siz = storage.get_max_siz();
+        let mut written: usize = 0;
+        // if we collide with file names, better to just overwrite.
+        let mut file = BufWriter::new(File::create(&upload).await?);
+        // write our mime detect read.
+        written += initial_read.len();
+        file.write_all(&initial_read).await?;
+        while let Some(chunk) = body.next().await {
+            let chunk = chunk.map_err(ApiError::new)?;
+            written += chunk.len();
+            // Technically forms can be sent with Transfer-Encoding: chunked.
+            // So we must guard against large reads.
+            if written > max_siz {
+                let done = ConsumeBody::new(body).await;
+                return Err(payload_too_large("image", max_siz, !done));
+            }
+            file.write_all(&chunk).await?;
+        }
+        file.flush().await?;
+    }
+    fguard.defuse();
+    Ok(ApiError::new_ok(format!("{link_prefix}/i/{fname}")))
 }
 
 #[cfg(not(feature = "serve-files"))]

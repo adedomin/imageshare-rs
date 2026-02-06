@@ -13,7 +13,7 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 pub mod contentlen;
 pub mod csrf;
-mod earlyretfut;
+pub mod earlyretfut;
 pub mod ratelim;
 #[cfg(feature = "serve-files")]
 pub mod utf8textplain;
