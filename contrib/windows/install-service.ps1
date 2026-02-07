@@ -36,11 +36,11 @@ $acl = New-Object System.Security.AccessControl.DirectorySecurity
 $acl.SetAccessRuleProtection($true, $false)
 $owner = New-Object System.Security.Principal.NTAccount -ArgumentList $ServiceAccount
 $acl.SetOwner($owner)
-$aclrules = 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'
+$aclprop = 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'
 $aclrules =
-    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, $ServiceAccount + $aclrules)),
-    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'NT AUTHORITY\SYSTEM' + $aclrules)),
-    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'BUILTIN\Administrators' + $aclrules))
+    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, $ServiceAccount + $aclprop)),
+    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'NT AUTHORITY\SYSTEM' + $aclprop)),
+    (New-Object System.Security.AccessControl.FileSystemAccessRule -ArgumentList (, 'BUILTIN\Administrators' + $aclprop))
 foreach ($rule in $aclrules) {
     $acl.AddAccessRule($rule)
 }
