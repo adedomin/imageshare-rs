@@ -69,7 +69,7 @@ try {
     link_prefix = $LinkPrefix
     # bind to a given socket addr, this installer is for HttpPlatformHandler, so we use the %PORT% bind
     # note that rt-dir: and unix: protocol do not work on Windows.
-    bind = "[::1]:%PORT%"
+    bind = "127.0.0.1:%PORT%"
 } |
 ConvertTo-Json |
 Out-File `
