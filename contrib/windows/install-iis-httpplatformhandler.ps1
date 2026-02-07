@@ -82,7 +82,11 @@ Out-File `
 $appcmd = "C:\Windows\System32\inetsrv\appcmd.exe"
 
 # set up vdirs
-# Requires
+# Requires:
+# * Internet Information Services
+#   * World Wide Web Services
+#     * Common HTTP Features
+#       * Static Content
 "$IMAGESHARE_HOME\i", "$IMAGESHARE_HOME\p" | % {
     New-Item -Type Directory -Force -Path $_
     # add IIS access for AppPool Identites (IIS_IUSERS) and Anonymous user (IUSR)
@@ -100,6 +104,7 @@ $appcmd = "C:\Windows\System32\inetsrv\appcmd.exe"
 
 # set up HttpPlatformHandler for our app
 & $appcmd unlock config -section:system.webServer/handlers
+& $appcmd unlock config -section:system.webServer/security/requestFiltering
 $webconf = [Environment]::ExpandEnvironmentVariables((& $appcmd list vdir /app.name:"$SiteName/" /text:physicalPath)[0])
 @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -125,5 +130,21 @@ $webconf = [Environment]::ExpandEnvironmentVariables((& $appcmd list vdir /app.n
       </httpPlatform>
     </system.webServer>
   </location>
+  <system.webServer>
+    <!--
+      Requires:
+        Windows Feature:
+        * Internet Information Services
+          * World Wide Web Services
+            * Security
+              * Request Filtering
+    -->
+    <security>
+      <requestFiltering>
+        <!-- SET YOUR MAX ALLOWED SIZE HERE -->
+        <requestLimits maxAllowedContentLength="$(10MB)" />
+      </requestFiltering>
+    </security>
+  </system.webServer>
 </configuration>
 "@ | Out-File -FilePath "$webconf\web.config" -Encoding ASCII
