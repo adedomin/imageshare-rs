@@ -28,6 +28,7 @@ use crate::{
     models::webdata::WebData,
 };
 
+#[cfg(unix)]
 mod env_vars {
     pub mod config {
         pub const BASE: &str = "CONFIGURATION_DIRECTORY";
@@ -43,6 +44,21 @@ mod env_vars {
         pub const BASE: &str = "RUNTIME_DIRECTORY";
         pub const USER: &str = "XDG_RUNTIME_DIR";
         pub const FALLBACK: &str = "/run";
+    }
+}
+
+#[cfg(windows)]
+mod env_vars {
+    pub mod config {
+        pub const BASE: &str = "IMAGESHARE_HOME";
+        pub const USER: &str = "AppData";
+        pub const FALLBACK: &str = r"C:\ProgramData";
+    }
+    pub mod data {
+        pub use super::config::*;
+    }
+    pub mod rt {
+        pub use super::config::*;
     }
 }
 
@@ -226,7 +242,7 @@ impl Ratelim {
     }
 
     pub fn trust_headers(&self) -> bool {
-        // moose isn't really intended to be run without a revproxy, assume true if omitted.
+        // Isn't really intended to be run without a revproxy, assume true if omitted.
         self.trust_headers.unwrap_or(true)
     }
 
@@ -252,11 +268,24 @@ pub struct Config {
     bind: String,
 }
 
+const PORT_ENV: [&str; 3] = ["HTTP_PLATFORM_PORT", "FUNCTIONS_CUSTOMHANDLER_PORT", "8146"];
+
 impl Config {
     pub fn get_bind_addr(&self) -> String {
         if let Some(rtdir) = self.bind.strip_prefix("rt-dir:") {
             let socket_base = find_systemd_or_xdg_path(rt::BASE, rt::USER, rt::FALLBACK, rtdir);
             format!("unix:{}", socket_base.to_string_lossy())
+        } else if let Some(inet) = self.bind.strip_suffix("%PORT%") {
+            let port = std::env::var(PORT_ENV[0])
+                .or_else(|_| std::env::var(PORT_ENV[1]))
+                .unwrap_or_else(|_| {
+                    eprintln!(
+                        "WARN: %HTTP_PLATFORM_PORT% could not be read! defaulting to {}",
+                        PORT_ENV[2]
+                    );
+                    PORT_ENV[2].to_string()
+                });
+            format!("{inet}:{port}")
         } else {
             self.bind.clone()
         }
@@ -332,6 +361,10 @@ const EXAMPLE_CONFIG: &str = r###"
 , "//": "the path prepended to upload results"
 , "link_prefix": "http://localhost:8146"
 , "bind": "127.0.0.1:8146"
+, "//": "For IIS HttpPlatformHandler (also for UNIX, I suppose)"
+, "//": "%PORT% is replaced with the envvar:"
+, "//": "%HTTP_PLATFORM_PORT% or %FUNCTIONS_CUSTOMHANDLER_PORT%"
+, "// bind": "127.0.0.1:%PORT%"
 , "//": "or the following uds ones"
 , "//bind": "unix:./socket/path/here/does/not/need/to/be/full.sock"
 , "//": "rt-dir: protocol expands to unix:${RUNTIME_DIRECTORY}/"

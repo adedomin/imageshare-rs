@@ -24,6 +24,10 @@ http = "1"
 pin-project-lite = "0.2"
 futures-util = "0.3"
 
+[target.'cfg(windows)'.dependencies]
+windows-services = "0.26.1"
+tokio-util = "0.7"
+
 [profile.release]
 lto = "fat"
 codegen-units = 1
