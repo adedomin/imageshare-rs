@@ -125,11 +125,34 @@ where
                 .get::<ConnectInfo<SocketAddr>>()
                 .map(|f| f.ip())
         };
+        #[cfg(unix)]
         let ip = if self.state.trust_headers {
             req.headers()
                 .get("X-Real-IP")
                 .and_then(|hv| hv.to_str().ok())
                 .and_then(|hv| hv.parse().ok())
+        } else {
+            None
+        };
+        // IIS HttpPlatformHandler is... different.
+        // we use X-Forwarded-For, but we have to parse the IP as a SocketAddr
+        #[cfg(windows)]
+        let ip = if self.state.trust_headers {
+            println!("{:?}", req.headers());
+            let ip = req
+                .headers()
+                .get("x-forwarded-for")
+                .and_then(|hv| hv.to_str().ok())
+                // BEST GUESS
+                .and_then(|hv| hv.rsplit([',', ';', ' ']).next())
+                .and_then(|hv| {
+                    hv.parse::<SocketAddr>()
+                        .map(|s| s.ip())
+                        .or_else(|_| hv.parse::<IpAddr>())
+                        .ok()
+                });
+            println!("{ip:?}");
+            ip
         } else {
             None
         };

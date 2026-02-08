@@ -353,7 +353,8 @@ const EXAMPLE_CONFIG: &str = r###"
     { "//": "Number of seconds to restore one token."
     , "secs": 30
     , "burst": 3
-    , "//": "Trust X-Real-IP in place of SocketAddr on Request."
+    , "//": "UNIX:    Trust X-Real-IP in place of SocketAddr on Request."
+    , "//": "Windows: Trust The last IP in X-Forwarded-For."
     , "trust_headers": true
     , "//": "Max number of IPs to track. Fixed size. default: 16384 (~128KiB of state)."
     , "bucket_size": 16384
