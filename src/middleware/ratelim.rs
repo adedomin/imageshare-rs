@@ -138,9 +138,7 @@ where
         // we use X-Forwarded-For, but we have to parse the IP as a SocketAddr
         #[cfg(windows)]
         let ip = if self.state.trust_headers {
-            println!("{:?}", req.headers());
-            let ip = req
-                .headers()
+            req.headers()
                 .get("x-forwarded-for")
                 .and_then(|hv| hv.to_str().ok())
                 // BEST GUESS
@@ -150,9 +148,7 @@ where
                         .map(|s| s.ip())
                         .or_else(|_| hv.parse::<IpAddr>())
                         .ok()
-                });
-            println!("{ip:?}");
-            ip
+                })
         } else {
             None
         };
