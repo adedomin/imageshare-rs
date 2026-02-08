@@ -275,7 +275,7 @@ impl Config {
         if let Some(rtdir) = self.bind.strip_prefix("rt-dir:") {
             let socket_base = find_systemd_or_xdg_path(rt::BASE, rt::USER, rt::FALLBACK, rtdir);
             format!("unix:{}", socket_base.to_string_lossy())
-        } else if let Some(inet) = self.bind.strip_suffix("%PORT%") {
+        } else if let Some(inet) = self.bind.strip_suffix(":%PORT%") {
             let port = std::env::var(PORT_ENV[0])
                 .or_else(|_| std::env::var(PORT_ENV[1]))
                 .unwrap_or_else(|_| {
