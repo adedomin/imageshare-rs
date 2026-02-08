@@ -82,11 +82,7 @@ Out-File `
 $appcmd = "C:\Windows\System32\inetsrv\appcmd.exe"
 
 # set up vdirs
-# Requires:
-# * Internet Information Services
-#   * World Wide Web Services
-#     * Common HTTP Features
-#       * Static Content
+# this must be done at the "apphost.config" level, so we use appcmd.
 "$IMAGESHARE_HOME\i", "$IMAGESHARE_HOME\p" | % {
     New-Item -Type Directory -Force -Path $_
     # add IIS access for AppPool Identites (IIS_IUSERS) and Anonymous user (IUSR)
@@ -96,13 +92,9 @@ $appcmd = "C:\Windows\System32\inetsrv\appcmd.exe"
     $acl | Set-Acl -Path $_
     $base = (Get-Item $_).BaseName
     & $appcmd add vdir "/app.name:$SiteName/" "/path:/$base" "/physicalPath:$_"
-    if ($base -eq "p") {
-        # set charset=utf8 for plaintext content
-        & $appcmd set config "$SiteName/p" -section:system.webServer/staticContent "/[fileExtension='.txt'].mimeType:text/plain; charset=utf8"
-    }
 }
 
-# set up HttpPlatformHandler for our app
+# set up our web.config for hosting.
 & $appcmd unlock config -section:system.webServer/handlers
 & $appcmd unlock config -section:system.webServer/security/requestFiltering
 $webconf = [Environment]::ExpandEnvironmentVariables((& $appcmd list vdir /app.name:"$SiteName/" /text:physicalPath)[0])
@@ -128,6 +120,35 @@ $webconf = [Environment]::ExpandEnvironmentVariables((& $appcmd list vdir /app.n
         processesPerApplication="1"
       >
       </httpPlatform>
+    </system.webServer>
+  </location>
+  <!--
+    Requires:
+      Windows Feature:
+      * Internet Information Services
+        * World Wide Web Services
+          * Common HTTP Features
+            * Static Content
+  -->
+  <location path="p" inheritInChildApplications="false">
+    <system.webServer>
+      <handlers>
+        <clear />
+        <add name="PasteFiles" path="*.txt" verb="*" modules="StaticFileModule" resourceType="Either" />
+      </handlers>
+      <staticContent>
+        <clear />
+        <!-- All pastes are valid UTF-8 -->
+        <mimeMap fileExtension=".txt" mimeType="text/plain; charset=utf8" />
+      </staticContent>
+    </system.webServer>
+  </location>
+  <location path="i" inheritInChildApplications="false">
+    <system.webServer>
+      <handlers>
+        <clear />
+        <add name="ImageFiles" path="*" verb="*" modules="StaticFileModule" resourceType="Either" />
+      </handlers>
     </system.webServer>
   </location>
   <system.webServer>
