@@ -1,5 +1,6 @@
 Param(
     [String]$Bin='.\target\release\imageshare-rs.exe',
+    [String]$HomePath="$env:ProgramData\imageshare-rs",
     [String]$LinkPrefix="http://localhost",
     [String]$SiteName="Default Web Site"
 )
@@ -17,9 +18,8 @@ if ($AddToPath) {
 }
 
 # set config and state home.
-$IMAGESHARE_HOME = "$env:ProgramData\imageshare-rs"
+$IMAGESHARE_HOME = "$HomePath"
 New-Item -Type Directory -Force -Path $IMAGESHARE_HOME
-[System.Environment]::SetEnvironmentVariable('IMAGESHARE_HOME', $IMAGESHARE_HOME, [System.EnvironmentVariableTarget]::Machine)
 # create new acl
 $acl = New-Object System.Security.AccessControl.DirectorySecurity
 # first disables inheritance (?), second removes all existing inherited access.
@@ -115,10 +115,14 @@ $webconf = [Environment]::ExpandEnvironmentVariables((& $appcmd list vdir /app.n
       <httpPlatform
         processPath="$IMAGESHARE_EXE"
         stdoutLogEnabled="true"
-        stdoutLogFile="%IMAGESHARE_HOME%\imageshare-rs-iis"
+        stdoutLogFile="$IMAGESHARE_HOME\imageshare-rs-iis"
         startupTimeLimit="30"
         processesPerApplication="1"
       >
+        <environmentVariables>
+          <!-- avoid global env var, change as appropriate -->
+          <environmentVariable name="IMAGESHARE_HOME" value="$IMAGESHARE_HOME" />
+        </environmentVariables>
       </httpPlatform>
     </system.webServer>
   </location>
