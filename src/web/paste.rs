@@ -25,8 +25,12 @@ use tower::ServiceBuilder;
 use crate::middleware::utf8textplain::Utf8TextPlain;
 use crate::{
     middleware::contentlen::HeaderSizeLim,
-    models::{api::ApiError, webdata::WebData},
-    web::image::{UploadGuard, background_rm_file, payload_too_large},
+    models::{
+        api::ApiError,
+        dropfs::{DropFsGuard, background_rm_file},
+        webdata::WebData,
+    },
+    web::image::payload_too_large,
 };
 
 fn handle_paste(r: Result<String, StringRejection>, lim: usize) -> Result<String, ApiError> {
@@ -57,7 +61,7 @@ async fn upload_paste(
         background_rm_file(del);
     }
 
-    let fguard = UploadGuard::new(&upload);
+    let fguard = DropFsGuard::new(&upload);
     tokio::fs::write(&upload, paste).await?;
     fguard.defuse();
     Ok(ApiError::new_ok(format!("{link_prefix}/p/{fname}")))

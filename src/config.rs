@@ -291,6 +291,10 @@ impl Config {
         }
     }
 
+    fn is_unix_listener(&self) -> bool {
+        self.get_bind_addr().strip_prefix("unix:").is_some()
+    }
+
     pub fn get_webdata(&mut self) -> Result<Arc<WebData>, ConfigError> {
         let image = StorageState::from(self.image.take().unwrap_or_default());
         let paste = StorageState::from(self.paste.take().unwrap_or_default());
@@ -328,6 +332,14 @@ pub fn get_config() -> Result<(Config, Arc<WebData>), ConfigError> {
             find_systemd_or_xdg_path(config::BASE, config::USER, config::FALLBACK, "config.json")
         });
     let mut config = open_and_parse(config)?;
+    // fixup ratelim config in unix socket case.
+    if config.is_unix_listener()
+        && let Some(ratelim) = config.ratelim.as_mut()
+        && let Some(false) = ratelim.trust_headers
+    {
+        eprintln!("WARN: ratelim.trust_headers must be true when using a unix listener!");
+        ratelim.trust_headers = Some(true);
+    }
     let webdata = config.get_webdata()?;
     Ok((config, webdata))
 }
@@ -367,6 +379,7 @@ const EXAMPLE_CONFIG: &str = r###"
 , "//": "%HTTP_PLATFORM_PORT% or %FUNCTIONS_CUSTOMHANDLER_PORT%"
 , "// bind": "127.0.0.1:%PORT%"
 , "//": "or the following uds ones"
+, "//": "NOTE: uds permissions are set to 0o666. Make sure parent is secure."
 , "//bind": "unix:./socket/path/here/does/not/need/to/be/full.sock"
 , "//": "rt-dir: protocol expands to unix:${RUNTIME_DIRECTORY}/"
 , "//": "${RUNTIME_DIRECTORY} can be the literal environment variable, or ${XDG_RUNTIME_DIR}/${CARGO_PKG_NAME}"

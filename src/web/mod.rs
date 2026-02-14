@@ -65,9 +65,11 @@ pub fn start_web(mut config: Config, webdata: Arc<WebData>) -> JoinHandle<Result
         if let Some(unix) = bind_addr.strip_prefix("unix:").map(PathBuf::from) {
             #[cfg(unix)]
             {
-                use crate::web::uds::unix::listen_uds;
+                use crate::{models::dropfs::DropFsGuard, web::uds::unix::listen_uds};
 
-                let uds = listen_uds(unix).await?;
+                // remove uds on shutdown
+                let _dropfs = DropFsGuard::new(&unix);
+                let uds = listen_uds(&unix).await?;
                 axum::serve(uds, web)
                     .with_graceful_shutdown(shutdown_h)
                     .await

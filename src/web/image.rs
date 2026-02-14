@@ -11,11 +11,11 @@
 // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
 use crate::middleware::contentlen::HeaderSizeLim;
 use crate::middleware::earlyretfut::ConsumeBody;
+use crate::models::dropfs::{DropFsGuard, background_rm_file};
 use crate::models::webdata::WebData;
 use crate::models::{api::ApiError, mime::detect_ext};
 use axum::body::{Body, BodyDataStream};
@@ -32,36 +32,6 @@ use tokio::{
     io::{AsyncWriteExt, BufWriter},
 };
 use tower::ServiceBuilder;
-
-pub struct UploadGuard<'a> {
-    inner: Option<&'a Path>,
-}
-
-pub fn background_rm_file(del: PathBuf) {
-    tokio::task::spawn_blocking(move || {
-        _ = std::fs::remove_file(del);
-    });
-}
-
-impl<'a> UploadGuard<'a> {
-    pub fn new<T: AsRef<Path> + 'a>(path: &'a T) -> Self {
-        Self {
-            inner: Some(path.as_ref()),
-        }
-    }
-
-    pub fn defuse(mut self) {
-        _ = self.inner.take();
-    }
-}
-
-impl<'a> Drop for UploadGuard<'a> {
-    fn drop(&mut self) {
-        if let Some(path) = self.inner {
-            background_rm_file(path.to_path_buf());
-        }
-    }
-}
 
 async fn get_ext(
     mut body: BodyDataStream,
@@ -109,7 +79,7 @@ async fn upload_img(State(webdata): State<Arc<WebData>>, body: Body) -> Result<A
         background_rm_file(del);
     }
 
-    let fguard = UploadGuard::new(&upload);
+    let fguard = DropFsGuard::new(&upload);
     {
         let max_siz = storage.get_max_siz();
         let mut written: usize = 0;

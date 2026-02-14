@@ -5,27 +5,24 @@ Description=ImageShare and pastebin service.
 User=imgirc
 # lets us control who can access unix socket + upload dir.
 Group=nginx
-# nothing secret in config.
-ConfigurationDirectoryMode=0755
 # creates /etc/imageshare-rs
 # put config.json there.
 ConfigurationDirectory=imageshare-rs
-# nothing secret, but you can make 750 if you only want nginx to read.
-StateDirectoryMode=0755
+# nothing secret in config.
+ConfigurationDirectoryMode=0755
 # creates /var/lib/imageshare-rs
 # this is the default that imageshare-rs will use.
 # no "dir": "path" needed!
 StateDirectory=imageshare-rs
-StateDirectoryMode=0750
+# nothing secret stored by the application.
+StateDirectoryMode=0755
 # creates /run/imageshare-rs so you can use rt-dir:your.sock
 RuntimeDirectory=imageshare-rs
 # only the user and nginx need to access this.
-RuntimeDirectoryMode=0770
-UMask=0002
+RuntimeDirectoryMode=0750
 ExecStart=/usr/local/bin/imageshare-rs
-WorkingDirectory=~
 Restart=on-failure
-RestartSec=5min
+RestartSec=30
 
 [Install]
 WantedBy=default.target

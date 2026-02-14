@@ -27,37 +27,46 @@ pub enum UdsErr {
     RemoveStale(PathBuf, std::io::Error),
     #[error("Fail looping making {0:?}")]
     Loop(PathBuf),
+    #[error("Failed to set 0o0660 mode for socket: {0:?} -- Reason: {1}")]
+    ChmodUds(PathBuf, std::io::Error),
     #[error("Windows; while Windows supports UDS, tokio and stdlib do not.")]
     Windows,
 }
 
 #[cfg(unix)]
 pub mod unix {
-    use std::{io::ErrorKind, path::PathBuf};
-
-    use tokio::{
-        fs::{create_dir_all, remove_file},
-        net::{UnixListener, UnixStream},
+    use std::{
+        fs::{Permissions, create_dir_all, remove_file, set_permissions},
+        io::ErrorKind,
+        os::unix::fs::PermissionsExt as _,
+        path::Path,
     };
+
+    use tokio::net::{UnixListener, UnixStream};
 
     use super::UdsErr;
 
-    pub async fn listen_uds(unix: PathBuf) -> Result<tokio::net::UnixListener, UdsErr> {
+    // TODO: consider abstract sockets?
+    pub async fn listen_uds(unix: &Path) -> Result<tokio::net::UnixListener, UdsErr> {
         let mut loop_ctr = 0;
         loop {
             if loop_ctr == 2 {
                 return Err(UdsErr::Loop(unix.to_path_buf()));
             }
             loop_ctr += 1;
-            match UnixListener::bind(&unix) {
-                Ok(uds) => break Ok(uds),
+            match UnixListener::bind(unix) {
+                Ok(uds) => {
+                    // rely on parent dir's mode, ACL or other security to restrict access.
+                    set_permissions(unix, Permissions::from_mode(0o0666))
+                        .map_err(|e| UdsErr::ChmodUds(unix.to_path_buf(), e))?;
+                    break Ok(uds);
+                }
                 Err(e) if e.kind() == ErrorKind::NotFound => {
                     if let Some(parent) = unix.parent() {
                         create_dir_all(parent)
-                            .await
-                            .map_err(|e| UdsErr::CreateParents(unix.clone(), e))?;
+                            .map_err(|e| UdsErr::CreateParents(unix.to_path_buf(), e))?;
                     } else {
-                        return Err(UdsErr::NoParents(unix));
+                        return Err(UdsErr::NoParents(unix.to_path_buf()));
                     }
                 }
                 Err(e) if e.kind() == ErrorKind::AddrInUse => {
@@ -65,16 +74,15 @@ pub mod unix {
                     match UnixStream::connect(&unix).await {
                         Ok(_) => return Err(UdsErr::RemoveStale(unix.to_path_buf(), e)),
                         Err(e) if e.kind() == ErrorKind::ConnectionRefused => {
-                            remove_file(&unix)
-                                .await
-                                .map_err(|e| UdsErr::RemoveStale(unix.clone(), e))?;
+                            remove_file(unix)
+                                .map_err(|e| UdsErr::RemoveStale(unix.to_path_buf(), e))?;
                         }
                         Err(e) => {
-                            return Err(UdsErr::UknkUdsBind(unix, e));
+                            return Err(UdsErr::UknkUdsBind(unix.to_path_buf(), e));
                         }
                     }
                 }
-                Err(e) => return Err(UdsErr::UknkUdsBind(unix, e)),
+                Err(e) => return Err(UdsErr::UknkUdsBind(unix.to_path_buf(), e)),
             }
         }
     }
