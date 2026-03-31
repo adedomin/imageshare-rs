@@ -77,7 +77,7 @@ function createImageFigure(file) {
     return box;
 }
 
-function createFileBox(file, xhr) {
+function createFileBox(file) {
     const url = document.createElement('a');
     url.href = '';
     url.textContent = `Uploading ${file.name}...`;
@@ -208,7 +208,7 @@ function handleFile(file) {
     xhr.open('POST', './upload');
     xhr.upload.addEventListener('progress', incrementProgress);
     xhr.addEventListener('loadend', finishedUpload);
-    xhr[xhrExt] = createFileBox(file, xhr);
+    xhr[xhrExt] = createFileBox(file);
     xhr.send(file);
 }
 
