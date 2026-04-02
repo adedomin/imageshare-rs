@@ -1,0 +1,138 @@
+:root {
+  --bg: #eae8e3;
+  --fg: black;
+  --bg-body: #cecbc2;
+  --select-col: #4e92ff;
+  --select-hover: #7bc0ff;
+  --fail-col: #ff2b56;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #333;
+    --fg: whitesmoke;
+    --bg-body: #252525;
+    --select-col: #276cda;
+    --select-hover: #276caa;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  color: var(--fg);
+  background-color: var(--bg-body);
+}
+
+.content {
+  font-family: sans-serif;
+  letter-spacing: 0.05em;
+  margin: 0 auto;
+  min-width: 256px;
+  max-width: 768px;
+  text-align: left;
+  padding: 1em;
+}
+
+h1 {
+  font-size: 2em;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.25em;
+  margin: 0;
+}
+
+.center-me {
+  display: grid;
+  place-content: center;
+}
+
+.hidden-file-input {
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  z-index: -1;
+}
+
+.input {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-size: 1.5em;
+  border: none;
+  border-radius: 5px;
+  color: var(--fg);
+  background-color: var(--bg);
+}
+
+.cp {
+  color: var(--fg);
+  background-color: var(--bg-body);
+  font-size: 1.25em;
+  border: none;
+  border-radius: 5px;
+  padding: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+button:hover {
+  background-color: var(--select-hover);
+}
+
+button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.selected {
+  background-color: var(--select-col);
+}
+
+.file-label {
+  height: 300px;
+  border: 1px dashed;
+  border-color: var(--fg);
+  background-color: var(--bg-body);
+}
+
+.upload-g {
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  grid-gap: 20px;
+  grid-template-columns: min-content 1fr;
+  border-radius: 5px;
+  background-color: var(--bg);
+  margin-bottom: 8px;
+}
+
+.upload-g.failed {
+  color: white;
+  background-color: var(--fail-col);
+}
+
+.upload-g .img {
+  height: 128px;
+  width: 128px;
+  overflow: hidden;
+  max-width: 100%;
+  grid-row-start: span 2;
+  margin: 5px;
+}
+
+img, video {
+  margin: auto;
+  max-width: 100%;
+}
+
+a {
+  color: var(--fg);
+}

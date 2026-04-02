@@ -4,49 +4,32 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="ImageShare - Upload and share images.">
-    <link rel="stylesheet" href="/public/css/bulma.used.css">
-    <link rel="stylesheet" href="/public/css/upload-btn.css">
+    <link rel="stylesheet" href="/public/css/index.css">
     <title>ImageShare</title>
   </head>
   <body>
-    <div class="hero is-primary" id="banner-color">
-      <div class="hero-body">
-        <div class="container">
-          <h1 class="title">
-            ImageShare
-          </h1>
-          <h2 class="subtitle" id="status-mesg">
-            Upload and share images with friends.
-          </h2>
-        </div>
+    <div class=content>
+      <h1>ImageShare</h1>
+      <h2 id=status-msg>Upload and share images with friends.</h2>
+      <p>
+        <input id=file class=hidden-file-input name=file multiple type=file accept="image/*,video/*">
+        <label id=dropzone for=file class="input file-label">
+          Select or Drop Files
+        </label>
+      </p>
+      <p>
+        <button id=submit class=input disabled>Upload</button>
+      </p>
+      <div id=uploads>
       </div>
     </div>
-    <div class="section">
-      <div class="container">
-        <div class="field">
-          <p class="control">
-            <input id="file" class="file-field" name="file" multiple type="file" accept="image/*,video/*">
-            <label id="dropzone" for="file" class="button is-large is-fullwidth has-text-centered file-label">Select or Drop Files</label>
-          </p>
-        </div>
-        <div class="field">
-          <p class="control">
-            <button id="submit" class="button is-primary is-medium is-fullwidth" disabled>Upload</button>
-          </p>
-        </div>
+    <template id=upload-tmpl>
+      <div class=upload-g>
+        <div class="img center-me"></div>
+        <div><a></a></div>
+        <div><button class=cp>Copy link</button></div>
       </div>
-    </div>
-    <div class="columns is-multiline is-gapless" id="uploads">
-    </div>
-    <div class="footer">
-      <div class="container is-fluid">
-        <div class="content has-text-centered">
-          <p class="is-center">
-          <strong><a href="https://github.com/adedomin/imageshare-rs">ImageShare-rs</a></strong>
-          </p>
-        </div>
-      </div>
-    </div>
+    </template>
     <script defer src="/public/js/upload-handler.js"></script>
   </body>
 </html>
