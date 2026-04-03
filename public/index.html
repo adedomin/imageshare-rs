@@ -13,21 +13,18 @@
       <h2 id=status-msg>Upload and share images with friends.</h2>
       <p>
         <input id=file class=hidden-file-input name=file multiple type=file accept="image/*,video/*">
-        <label id=dropzone for=file class="input file-label">
+        <label id=dropzone for=file class="fullwidth input file-label">
           Select or Drop Files
         </label>
       </p>
-      <p>
-        <button id=submit class=input disabled>Upload</button>
-      </p>
-      <div id=uploads>
-      </div>
+      <p><button id=submit class="fullwidth input btn" disabled>Upload</button></p>
+      <div id=uploads></div>
     </div>
     <template id=upload-tmpl>
       <div class=upload-g>
         <div class="img center-me"></div>
-        <div><a></a></div>
-        <div><button class=cp>Copy link</button></div>
+        <progress class=fullwidth max=100 value=0>0%</progress>
+        <button class="cp btn">Copy link</button>
       </div>
     </template>
     <script defer src="/public/js/upload-handler.js"></script>

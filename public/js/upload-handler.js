@@ -23,10 +23,6 @@ const submit = document.getElementById('submit');
 const uploads = document.getElementById('uploads');
 const tmpl = document.getElementById('upload-tmpl');
 
-function setInfo(message) {
-    statusMsg.textContent = message;
-}
-
 function createImageFigure(file) {
     const isVideo = file.type.indexOf('video') == 0;
     const imgEl = document.createElement(
@@ -48,17 +44,44 @@ function createImageFigure(file) {
     return imgEl;
 }
 
+function handleCopyLink(ev) {
+    ev.preventDefault();
+    // unset any existing clicked button
+    document.querySelectorAll('button[data-was-clicked="true"]')
+        .forEach(button => {
+            button.textContent = 'Copy link';
+            button.dataset.wasClicked = false;
+            button.classList.remove('selected');
+            button.classList.remove('failed');
+        });
+    // indicate this button was clicked
+    ev.target.dataset.wasClicked = true;
+    let a = ev.target.parentNode.querySelector('a');
+    if (a.href == null) {
+        ev.target.classList.add('failed');
+        ev.target.textContent = 'No link';
+        return;
+    }
+    navigator.clipboard.writeText(a.href).then(() => {
+        ev.target.classList.add('selected');
+        ev.target.textContent = 'Copied';
+    }).catch(() => {
+        ev.target.classList.add('failed');
+        ev.target.textContent = 'Failed to copy';
+    });
+}
+
 let movingDotPos = -1;
-function incrementProgress(el) {
+function incrementProgress(prog, ev) {
     const dots = ['.', '.', '.', '.', '.', '.', '.'];
     movingDotPos = (movingDotPos + 1) % dots.length;
     dots[movingDotPos] = 'o';
+    dropzone.textContent = `${dots.join('')}`;
 
-    if (el.lengthComputable) {
-        dropzone.textContent = `${dots.join('')} ${Math.floor((el.loaded / el.total)*100)}%`;
-    }
-    else {
-        dropzone.textContent = `${dots.join('')}`;
+    if (ev.lengthComputable) {
+        const percent = Math.floor((ev.loaded / ev.total)*100);
+        prog.value = percent;
+        prog.textContent = `${percent}%`;
     }
 }
 
@@ -74,7 +97,7 @@ function handleRes(code, txt) {
             res.msg = "Your image is too large!"; 
         }
         else if (code === 0) {
-            res.msg = "Unknown error. Your browser did not process the response.";
+            res.msg = "Server is down.";
         }
         else {
             res.msg = `Unknown error. Did not receive a url for uploaded image. HTTP Code: ${code}`;
@@ -83,83 +106,58 @@ function handleRes(code, txt) {
     return res;
 }
 
-function createFailBox(file, msg) {
-    const box = createUploadBox(file, msg);
-    const up = box.querySelector('.upload-g');
-    up.classList.add('failed');
-    const btn =  up.querySelector('button');
-    btn.disabled = true;
+function setBoxFailure(box, msg) {
+    box.classList.add('failed');
+    const btn =  box.querySelector('button');
     btn.textContent = 'Failed';
-    up.querySelector('a').replaceWith(msg);
-    console.log(box);
-    return box;
+    box.querySelector('progress').replaceWith(msg);
 }
 
-function createUploadBox(file, link) {
-    const box = tmpl.content.cloneNode(true);
+function setBoxSuccess(box, link) {
+    const btn = box.querySelector('button');
+    btn.disabled = false;
+    const href = document.createElement('a');
+    href.href = link;
+    href.textContent = link;
+    box.querySelector('progress').replaceWith(href);
+}
+
+function createUploadBox(file) {
+    const box = tmpl.content.cloneNode(true).querySelector('.upload-g');
 
     const media = box.querySelector('.img');
     media.appendChild(createImageFigure(file));
 
-    const url = box.querySelector('a');
-    url.href = link;
-    url.textContent = link;
-
     const copyBtn = box.querySelector('button');
-    copyBtn.addEventListener('click', ev => {
-        ev.preventDefault();
-        // unset any existing clicked button
-        document.querySelectorAll('button[data-was-clicked="true"]')
-            .forEach(button => {
-                button.textContent = 'Copy link';
-                button.dataset.wasClicked = false;
-                button.classList.remove('selected');
-                button.classList.remove('failed');
-            });
-        // indicate this button was clicked
-        ev.target.dataset.wasClicked = true;
-
-        let fakeInput = document.createElement('textarea');
-        fakeInput.value = url.href;
-        document.body.appendChild(fakeInput);
-        fakeInput.select();
-        if (document.execCommand('copy')) {
-            ev.target.classList.add('selected');
-            ev.target.textContent = 'Copied';
-        }
-        else {
-            ev.target.classList.add('failed');
-            ev.target.textContent = 'Failed to copy';
-        }
-        document.body.removeChild(fakeInput);
-    });
-
+    copyBtn.disabled = true;
+    copyBtn.addEventListener('click', handleCopyLink);
     return box;
 }
 
 function handleFile(file) {
     if (file.type.indexOf('image') != 0 && file.type.indexOf('video') != 0 ) {
-        setInfo('You can only upload images or videos');
+        statusMsg.textContent = 'You can only upload images or videos';
         return;
     }
 
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
+        const box = createUploadBox(file);
+        const progress = box.querySelector('progress');
         xhr.open('POST', './upload');
-        xhr.upload.addEventListener('progress', incrementProgress);
+        uploads.appendChild(box);
+        xhr.upload.addEventListener('progress', incrementProgress.bind(null, progress));
         xhr.addEventListener('loadend', () => {
             const code = xhr.status
             const res = handleRes(code, xhr.responseText);
-            let box;
             if (code != 200 || res.status == 'error') {
-                box = createFailBox(file, res.msg);
-                reject(res.msg);
+                setBoxFailure(box, res.msg);
+                reject();
             }
             else {
-                box = createUploadBox(file, res.msg);
+                setBoxSuccess(box, res.msg);
                 resolve();
             }
-            uploads.appendChild(box);
         });
         xhr.send(file);
     });
@@ -167,31 +165,33 @@ function handleFile(file) {
 
 function changeFileLabel(el) {
     dropzone.textContent = `Selected (${el.target.files.length})`;
-    if (el.target.files.length > 0)
+    if (el.target.files.length > 0) {
         submit.disabled = false;
+    }
 }
 
 function handleAllUploads(files) {
     submit.disabled = true;
-    setInfo('Uploading...');
+    statusMsg.textContent = 'Uploading...';
     Promise.allSettled(Array.prototype.map.call(files, handleFile)).then(results => {
         dropzone.textContent = 'Select or Drop Files';
-        setInfo('Uploaded all');
-        results.forEach(r => {
-            if (r.status === 'rejected') setInfo('An Upload failed.');
-        });
+        if (results.find(r => r.status === 'rejected')) {
+            statusMsg.textContent = 'One of the uploads failed';
+        }
+        else {
+            statusMsg.textContent = 'Upload and share images with friends.';
+        }
     });
 }
 
-function uploadFile(el) {
-    handleAllUploads(el.files);
+function uploadFile() {
+    handleAllUploads(files.files);
 }
 
 function dropHandle(el) {
     el.preventDefault();
     const files = el?.dataTransfer?.files;
     if (files != null) {
-        submit.disabled = true;
         handleAllUploads(files);
     }
 }
@@ -210,4 +210,4 @@ dropzone.addEventListener('drop', dropHandle);
 dropzone.addEventListener('dragover', dragover);
 dropzone.addEventListener('dragend', dragend);
 
-submit.addEventListener('click', uploadFile.bind(null, files));
+submit.addEventListener('click', uploadFile);

@@ -60,27 +60,44 @@ h2 {
   z-index: -1;
 }
 
-.input {
+.fullwidth {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
+}
+
+.input {
   font-size: 1.5em;
-  border: none;
-  border-radius: 5px;
   color: var(--fg);
   background-color: var(--bg);
+}
+
+
+.input.file-label {
+  height: 300px;
+  border: 1px dashed var(--fg);
+  border-radius: 5px;
+  background-color: var(--bg-body);
+}
+
+
+.btn {
+  border: none;
+  border-radius: 5px;
+  padding: 5px;
 }
 
 .cp {
   color: var(--fg);
   background-color: var(--bg-body);
   font-size: 1.25em;
-  border: none;
-  border-radius: 5px;
-  padding: 5px;
   padding-left: 10px;
   padding-right: 10px;
+}
+
+#submit:not(button[disabled]) {
+  background-color: var(--select-col);
 }
 
 button:hover {
@@ -94,13 +111,6 @@ button[disabled] {
 
 .selected {
   background-color: var(--select-col);
-}
-
-.file-label {
-  height: 300px;
-  border: 1px dashed;
-  border-color: var(--fg);
-  background-color: var(--bg-body);
 }
 
 .upload-g {
@@ -126,6 +136,14 @@ button[disabled] {
   max-width: 100%;
   grid-row-start: span 2;
   margin: 5px;
+}
+
+.upload-g progress {
+  margin-right: 20px;
+  color: var(--fg);
+  background-color: var(--bg-body);
+  border: none;
+  border-radius: 10px;
 }
 
 img, video {
