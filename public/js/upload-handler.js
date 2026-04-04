@@ -24,7 +24,7 @@ const uploads = document.getElementById('uploads');
 const tmpl = document.getElementById('upload-tmpl');
 
 function createImageFigure(file) {
-    const isVideo = file.type.indexOf('video') == 0;
+    const isVideo = file.type.indexOf('video') === 0;
     const imgEl = document.createElement(
         isVideo ? 'video' : 'img',
     );
@@ -79,9 +79,11 @@ function incrementProgress(prog, ev) {
     dropzone.textContent = `${dots.join('')}`;
 
     if (ev.lengthComputable) {
-        const percent = Math.floor((ev.loaded / ev.total)*100);
-        prog.value = percent;
-        prog.textContent = `${percent}%`;
+        const percent = Math.floor((ev.loaded / ev.total) * 100);
+        if (percent !== prog.value) {
+            prog.value = percent;
+            prog.textContent = `${percent}%`;
+        }
     }
 }
 
@@ -92,12 +94,12 @@ function handleRes(code, txt) {
         res = JSON.parse(txt);
     }
     catch (e) {
-        res = { status: "error", msg: null };
+        res = { status: 'error', msg: null };
         if (code === 413) {
-            res.msg = "Your image is too large!"; 
+            res.msg = 'Your image is too large!';
         }
         else if (code === 0) {
-            res.msg = "Server is down.";
+            res.msg = 'Server is down.';
         }
         else {
             res.msg = `Unknown error. Did not receive a url for uploaded image. HTTP Code: ${code}`;
@@ -135,7 +137,7 @@ function createUploadBox(file) {
 }
 
 function handleFile(file) {
-    if (file.type.indexOf('image') != 0 && file.type.indexOf('video') != 0 ) {
+    if (file.type.indexOf('image') !== 0 && file.type.indexOf('video') !== 0 ) {
         statusMsg.textContent = 'You can only upload images or videos';
         return;
     }
@@ -148,9 +150,9 @@ function handleFile(file) {
         uploads.appendChild(box);
         xhr.upload.addEventListener('progress', incrementProgress.bind(null, progress));
         xhr.addEventListener('loadend', () => {
-            const code = xhr.status
+            const code = xhr.status;
             const res = handleRes(code, xhr.responseText);
-            if (code != 200 || res.status == 'error') {
+            if (code !== 200 || res.status === 'error') {
                 setBoxFailure(box, res.msg);
                 reject();
             }

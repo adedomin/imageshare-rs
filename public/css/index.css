@@ -117,12 +117,11 @@ button[disabled] {
   display: grid;
   align-items: center;
   justify-items: center;
-  grid-gap: 20px;
   grid-template-columns: min-content 1fr;
   grid-template-rows: 1fr 1fr;
   border-radius: 5px;
   background-color: var(--bg);
-  margin-bottom: 8px;
+  margin-bottom: 1em;
 }
 
 .upload-g > * {
@@ -140,11 +139,13 @@ button[disabled] {
   overflow: hidden;
   max-width: 100%;
   grid-row-start: span 2;
-  margin: 5px;
+  margin: 0.5em;
 }
 
 .upload-g progress {
-  margin-right: 20px;
+  margin-left: 0.5em;
+  margin-right: 0.5em;
+  width: calc(100% - 1em);
   color: var(--fg);
   background-color: var(--bg-body);
   border: none;
@@ -159,7 +160,6 @@ button[disabled] {
 }
 
 img, video {
-  margin: auto;
   max-width: 100%;
 }
 
