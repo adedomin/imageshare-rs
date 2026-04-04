@@ -93,7 +93,7 @@ function handleRes(code, txt) {
         // in case the server returns html (reverse proxy)
         res = JSON.parse(txt);
     }
-    catch (e) {
+    catch {
         res = { status: 'error', msg: null };
         if (code === 413) {
             res.msg = 'Your image is too large!';
