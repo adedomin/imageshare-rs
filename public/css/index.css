@@ -119,9 +119,14 @@ button[disabled] {
   justify-items: center;
   grid-gap: 20px;
   grid-template-columns: min-content 1fr;
+  grid-template-rows: 1fr 1fr;
   border-radius: 5px;
   background-color: var(--bg);
   margin-bottom: 8px;
+}
+
+.upload-g > * {
+  min-width: 0;
 }
 
 .upload-g.failed {
@@ -144,6 +149,13 @@ button[disabled] {
   background-color: var(--bg-body);
   border: none;
   border-radius: 10px;
+}
+
+.upload-g a {
+  text-wrap: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 img, video {
