@@ -24,7 +24,7 @@ const uploads = document.getElementById('uploads');
 const tmpl = document.getElementById('upload-tmpl');
 
 function createImageFigure(file) {
-    const isVideo = file.type.indexOf('video') === 0;
+    const isVideo = file.type.startsWith('video');
     const imgEl = document.createElement(
         isVideo ? 'video' : 'img',
     );
@@ -137,11 +137,6 @@ function createUploadBox(file) {
 }
 
 function handleFile(file) {
-    if (file.type.indexOf('image') !== 0 && file.type.indexOf('video') !== 0 ) {
-        statusMsg.textContent = 'You can only upload images or videos';
-        return;
-    }
-
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const box = createUploadBox(file);
@@ -173,12 +168,17 @@ function changeFileLabel(el) {
 }
 
 function handleAllUploads(files) {
+    if (Array.prototype.find.call(files, f => !f.type.startsWith('image') && !f.type.startsWith('video')) !== undefined) {
+        statusMsg.textContent = 'You can only upload images or videos.';
+        return;
+    }
+
     submit.disabled = true;
     statusMsg.textContent = 'Uploading...';
     Promise.allSettled(Array.prototype.map.call(files, handleFile)).then(results => {
         dropzone.textContent = 'Select or Drop Files';
         if (results.find(r => r.status === 'rejected')) {
-            statusMsg.textContent = 'One of the uploads failed';
+            statusMsg.textContent = 'One of the uploads failed.';
         }
         else {
             statusMsg.textContent = 'Upload and share images with friends.';

@@ -85,7 +85,8 @@ where
         if !req.method().is_safe() {
             let headers = req.headers();
             if !sec_fetch_site_check(headers)
-                .unwrap_or_else(|| origin_check(headers).unwrap_or(true))
+                .or_else(|| origin_check(headers))
+                .unwrap_or(true)
             {
                 return EarlyRetFut::new_early(
                     ApiError::new_with_status(StatusCode::FORBIDDEN, "CSRF failure.")
