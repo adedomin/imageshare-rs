@@ -81,6 +81,10 @@ h2 {
   background-color: var(--bg-body);
 }
 
+.input.file-label:hover {
+  background-color: var(--bg);
+}
+
 
 .btn {
   border: none;
@@ -107,6 +111,10 @@ button:hover {
 button[disabled] {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+button[disabled]:hover {
+  background-color: var(--bg);
 }
 
 .selected {
@@ -161,6 +169,10 @@ button[disabled] {
 
 img, video {
   max-width: 100%;
+}
+
+video {
+  cursor: pointer;
 }
 
 a {
