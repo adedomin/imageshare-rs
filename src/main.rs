@@ -32,7 +32,39 @@ enum MainErr {
 }
 
 #[cfg(unix)]
+fn set_rlimit() -> Result<(), libc::c_int> {
+    use libc::{getrlimit, rlimit, setrlimit};
+
+    let mut rlim = rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+
+    let rlim_ret = unsafe { getrlimit(libc::RLIMIT_NOFILE, &raw mut rlim) };
+    if rlim_ret != 0 {
+        return Err(rlim_ret);
+    };
+
+    if rlim.rlim_cur >= rlim.rlim_max {
+        return Ok(());
+    }
+    rlim.rlim_cur = rlim.rlim_max;
+
+    let rlim_ret = unsafe { setrlimit(libc::RLIMIT_NOFILE, &raw const rlim) };
+    if rlim_ret != 0 {
+        return Err(rlim_ret);
+    };
+
+    Ok(())
+}
+
+#[cfg(unix)]
 fn main() {
+    // We don't use select() so we should be able to match the hard NOFILE limit.
+    // NodeJS seems to do this as well.
+    if let Err(e) = set_rlimit() {
+        eprintln!("WARN: Failed to get/set NOFILE rlimit; error: {e}");
+    }
     if let Err(e) = real_main() {
         eprintln!("{e}");
         exit(1);
@@ -42,7 +74,7 @@ fn main() {
 fn real_main() -> Result<(), MainErr> {
     let (config, webdata) = get_config()?;
     let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
+        .enable_all()
         .build()
         .unwrap();
     Ok(rt.block_on(async {
