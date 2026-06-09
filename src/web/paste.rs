@@ -11,18 +11,21 @@
 // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use axum::{
     Router,
     extract::{DefaultBodyLimit, State, rejection::StringRejection},
+    response::Response,
     routing::post,
 };
+
+#[cfg(feature = "serve-files")]
+use axum::extract::Path as ExtractPath;
+
 use http::StatusCode;
 use tower::ServiceBuilder;
 
-#[cfg(feature = "serve-files")]
-use crate::middleware::utf8textplain::Utf8TextPlain;
 use crate::{
     middleware::contentlen::HeaderSizeLim,
     models::{
@@ -82,12 +85,48 @@ location /p/ {
 "###;
 
 #[cfg(not(feature = "serve-files"))]
-async fn get_file_err() -> axum::response::Response {
-    axum::response::Response::builder()
+async fn get_file() -> Response {
+    Response::builder()
         .status(http::StatusCode::OK)
         .header(http::header::CONTENT_TYPE, "text/plain; charset=utf8")
         .body(FILE_ERR_MSG.into())
         .unwrap()
+}
+
+#[cfg(feature = "serve-files")]
+async fn get_file(
+    State(webdata): State<Arc<WebData>>,
+    ExtractPath(path): ExtractPath<String>,
+) -> Response {
+    let mut b = webdata.paste.get_base();
+    b.push(path);
+    // NOTE: we already read in uploaded pastes into memory,
+    // so we should be able to safely read them into memory to send.
+    match tokio::fs::read(&b).await {
+        Ok(b) => Response::builder()
+            .status(http::StatusCode::OK)
+            .header(http::header::CONTENT_TYPE, "text/plain; charset=utf8")
+            // tower-http sets other conditional headers.
+            // in this case we'll just tell the client that this basically does not change instead.
+            .header(
+                http::header::CACHE_CONTROL,
+                "public, immutable, max-age=86400, stale-while-revalidate=1209600, stale-if-error=1209600",
+            )
+            .body(b.into())
+            .unwrap(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Response::builder()
+            .status(http::StatusCode::NOT_FOUND)
+            .body(().into())
+            .unwrap(),
+        Err(e) => {
+            eprintln!("ERR: unexpected I/O serving paste, {b:?}: {e}");
+            Response::builder()
+                .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+                .header(http::header::CONTENT_TYPE, "text/plain; charset=utf8")
+                .body("I/O Error".into())
+                .unwrap()
+        }
+    }
 }
 
 pub fn upload_route(lim: usize) -> Router<Arc<WebData>> {
@@ -98,16 +137,6 @@ pub fn upload_route(lim: usize) -> Router<Arc<WebData>> {
     )
 }
 
-pub fn serve_route<P: AsRef<Path>>(_p: P) -> Router<Arc<WebData>> {
-    let r = Router::new();
-    #[cfg(feature = "serve-files")]
-    let r = r.nest_service(
-        "/p",
-        ServiceBuilder::new()
-            .layer(Utf8TextPlain)
-            .service(tower_http::services::ServeDir::new(_p).with_buf_chunk_size(256 * 1024)),
-    );
-    #[cfg(not(feature = "serve-files"))]
-    let r = r.route("/p/{*any}", axum::routing::get(get_file_err));
-    r
+pub fn serve_route() -> Router<Arc<WebData>> {
+    Router::new().route("/p/{any}", axum::routing::get(get_file))
 }

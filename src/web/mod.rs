@@ -56,7 +56,7 @@ pub fn start_web(mut config: Config, webdata: Arc<WebData>) -> JoinHandle<Result
                 .option_layer(ratelim),
         )
         .merge(image::serve_route(webdata.image.get_base()))
-        .merge(paste::serve_route(webdata.paste.get_base()))
+        .merge(paste::serve_route())
         .merge(static_files::routes())
         .with_state(webdata);
     let shutdown_h = shutdown();
