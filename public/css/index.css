@@ -1,10 +1,10 @@
 :root {
-  --bg: #eae8e3;
+  --bg: #e5e5e5;
   --fg: black;
-  --bg-body: #cecbc2;
-  --select-col: #4e92ff;
-  --select-hover: #7bc0ff;
-  --fail-col: #ff2b56;
+  --bg-body: #f5f5f5;
+  --select-col: #00d1b2;
+  --select-hover: #48c78e;
+  --fail-col: #ff6685;
 }
 
 @media (prefers-color-scheme: dark) {
