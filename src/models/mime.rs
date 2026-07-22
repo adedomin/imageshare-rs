@@ -11,7 +11,7 @@
 // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-pub const MIME: [(&[u8], usize, &str); 13] = [
+pub const MIME: [(&[u8], usize, &str); 14] = [
     (&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], 0, "png"),
     (&[0xFF, 0xD8, 0xFF], 0, "jpg"),
     (
@@ -26,6 +26,7 @@ pub const MIME: [(&[u8], usize, &str); 13] = [
     (&[0x1A, 0x45, 0xDF, 0xA3], 0, "webm"),
     (b"ftypMSNV", 4, "mp4"),
     (b"ftypisom", 4, "mp4"),
+    (b"ftypmp42", 4, "mp4"),
     (b"WEBP", 8, "webp"),
     (b"ftypavif", 4, "avif"),
     (b"ftypheic", 4, "heic"),
