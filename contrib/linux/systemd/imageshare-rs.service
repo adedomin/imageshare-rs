@@ -20,6 +20,8 @@ StateDirectoryMode=0755
 RuntimeDirectory=imageshare-rs
 # only the user and nginx need to access this.
 RuntimeDirectoryMode=0750
+# delete old images on reboot.
+ExecStartPre=-/usr/bin/find ${STATE_DIRECTORY}/p ${STATE_DIRECTORY}/i -mtime 7 -delete
 ExecStart=/usr/local/bin/imageshare-rs
 Restart=on-failure
 RestartSec=30

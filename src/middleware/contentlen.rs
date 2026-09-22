@@ -47,23 +47,20 @@ impl<S> Layer<S> for HeaderSizeLim {
     }
 }
 
-/// check content-length and make sure the stated size is less than or equal to the limit.
-fn check_len(headers: &HeaderMap, lim: usize) -> bool {
-    // hyper kills connections with multiple, conflicting content-lengths.
-    // Should be safe to read the first one.
-    match headers.get(CONTENT_LENGTH).map(|v| {
-        v.to_str()
-            .or(Err(()))
-            .and_then(|v| v.parse::<usize>().or(Err(())))
-    }) {
-        Some(Ok(len)) => len <= lim,
-        // shouldn't happen; parse error.
-        Some(Err(_)) => false,
-        // no header.
-        None => true,
+fn get_len(headers: &HeaderMap) -> Option<usize> {
+    let mut iter = headers.get_all(CONTENT_LENGTH).iter();
+    // no try_reduce...
+    let init = iter.next()?;
+    // should not happen... sanity anyway.
+    if iter.all(|v| init == v) {
+        init.to_str().ok()?.parse::<usize>().ok()
+    } else {
+        None
     }
-    // TODO: What should we do when we get Transfer-Encoding: chunked && Content-Lenght: NUM ???
 }
+
+#[derive(Clone)]
+pub struct ClaimedLen(pub usize);
 
 impl<S> Service<Request> for HeaderSizeLimMiddle<S>
 where
@@ -78,12 +75,13 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, req: Request) -> Self::Future {
+    fn call(&mut self, mut req: Request) -> Self::Future {
         // only non-safe should have *any* body.
-        if !req.method().is_safe() {
+        if !req.method().is_safe()
+            && let Some(len) = get_len(req.headers())
+        {
             let lim = self.siz;
-            let headers = req.headers();
-            if !check_len(headers, lim) {
+            if len > lim {
                 return EarlyRetFut::new_early(
                     ApiError::new_with_status(
                         StatusCode::PAYLOAD_TOO_LARGE,
@@ -93,6 +91,7 @@ where
                     req.into_body().into_data_stream(),
                 );
             }
+            req.extensions_mut().insert(ClaimedLen(len));
         }
         EarlyRetFut::new_next(self.inner.call(req))
     }

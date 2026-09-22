@@ -19,7 +19,7 @@ use tower::ServiceBuilder;
 
 use crate::{
     config::Config,
-    middleware::{csrf::HeaderCsrf, ratelim::BucketRatelim},
+    middleware::{csrf::HeaderCsrf, ratelim::BucketRatelim, refresh_cache::RefreshCache},
     models::webdata::WebData,
     shutdown::shutdown,
     web::uds::UdsErr,
@@ -57,6 +57,7 @@ pub fn start_web(mut config: Config, webdata: Arc<WebData>) -> JoinHandle<Result
         )
         .merge(image::serve_route(webdata.image.get_base()))
         .merge(paste::serve_route())
+        .layer(RefreshCache::new(webdata.clone()))
         .merge(static_files::routes())
         .with_state(webdata);
     let shutdown_h = shutdown();

@@ -20,7 +20,6 @@ use axum::{
     routing::post,
 };
 
-#[cfg(feature = "serve-files")]
 use axum::extract::Path as ExtractPath;
 
 use http::StatusCode;
@@ -30,7 +29,7 @@ use crate::{
     middleware::contentlen::HeaderSizeLim,
     models::{
         api::ApiError,
-        dropfs::{DropFsGuard, background_rm_file},
+        dropfs::{DropFsGuard, build_with_base},
         webdata::WebData,
     },
     web::image::payload_too_large,
@@ -56,40 +55,43 @@ async fn upload_paste(
         ..
     } = webdata.as_ref();
     let paste = handle_paste(paste, storage.get_max_siz())?;
-    let fname = storage.gen_new_fname("txt");
-    let mut upload = storage.get_base();
-    upload.push(&fname);
-    // if the file fails beyond this point, it will be stale in the FIFO. oh well.
-    if let Some(del) = storage.push(&upload) {
-        background_rm_file(del);
-    }
 
+    let siz = paste.len();
+    let fname = storage.gen_new_fname("txt");
+    // by entering into the cache, we're asking for at least `siz` reservation.
+    storage.push(fname.clone(), siz);
+
+    let upload = build_with_base(storage.get_base(), &fname);
     let fguard = DropFsGuard::new(&upload);
     tokio::fs::write(&upload, paste).await?;
     fguard.defuse();
+
     Ok(ApiError::new_ok(format!("{link_prefix}/p/{fname}")))
 }
 
-#[cfg(not(feature = "serve-files"))]
-const FILE_ERR_MSG: &str = r###"
-You are expected to use a Reverse Proxy to host imageshare if you disable the `serve-files` feature.
-To serve the /p folder, Please see the example nginx snippet:
+// #[cfg(not(feature = "serve-files"))]
+// const FILE_ERR_MSG: &str = r###"
+// You are expected to use a Reverse Proxy to host imageshare if you disable the `serve-files` feature.
+// To serve the /p folder, Please see the example nginx snippet:
 
-```nginx.conf
-# assumes you use the default pastebin path
-location /p/ {
-    types { "text/plain; charset=utf-8" txt; }
-    root /var/lib/imageshare-rs;
-}
-```
-"###;
+// ```nginx.conf
+// # assumes you use the default pastebin path
+// location /internal/p/ {
+//     internal;
+//     types { "text/plain; charset=utf-8" txt; }
+//     alias /var/lib/imageshare-rs/p/;
+// }
+// ```
+// "###;
 
 #[cfg(not(feature = "serve-files"))]
-async fn get_file() -> Response {
+async fn get_file(ExtractPath(path): ExtractPath<String>) -> Response {
+    use crate::web::image::NGINX_X_ACCEL_REDIRECT;
+
     Response::builder()
         .status(http::StatusCode::OK)
-        .header(http::header::CONTENT_TYPE, "text/plain; charset=utf8")
-        .body(FILE_ERR_MSG.into())
+        .header(NGINX_X_ACCEL_REDIRECT, format!("/internal/p/{path}"))
+        .body(().into())
         .unwrap()
 }
 
@@ -98,8 +100,7 @@ async fn get_file(
     State(webdata): State<Arc<WebData>>,
     ExtractPath(path): ExtractPath<String>,
 ) -> Response {
-    let mut b = webdata.paste.get_base();
-    b.push(path);
+    let b = build_with_base(webdata.paste.get_base(), &path);
     // NOTE: we already read in uploaded pastes into memory,
     // so we should be able to safely read them into memory to send.
     match tokio::fs::read(&b).await {

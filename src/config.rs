@@ -11,21 +11,19 @@
 // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 use std::{
-    collections::VecDeque,
     io::{self, ErrorKind},
     num::{NonZero, NonZeroUsize},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, atomic::AtomicU64},
+    sync::Arc,
 };
 
-use rand::{Rng, seq::SliceRandom};
 use serde::Deserialize;
-use sqids::Sqids;
 
 use crate::{
     config::env_vars::{config, data, rt},
-    models::webdata::WebData,
+    models::{storage::StorageState, webdata::WebData},
 };
 
 #[cfg(unix)]
@@ -104,12 +102,12 @@ fn dir_default<const T: usize>() -> PathBuf {
 }
 
 #[derive(Deserialize)]
-struct StorageSettings<const T: usize> {
+pub struct StorageSettings<const T: usize> {
     #[serde(default = "siz_default::<T>")]
-    siz: NonZeroUsize,
-    cnt: Option<NonZeroUsize>,
+    pub siz: NonZeroUsize,
+    pub cnt: Option<NonZeroUsize>,
     #[serde(default = "dir_default::<T>")]
-    dir: PathBuf,
+    pub dir: PathBuf,
 }
 
 impl<const T: usize> Default for StorageSettings<T> {
@@ -118,105 +116,6 @@ impl<const T: usize> Default for StorageSettings<T> {
             siz: siz_default::<T>(),
             cnt: None,
             dir: dir_default::<T>(),
-        }
-    }
-}
-
-pub struct StorageState {
-    base: PathBuf,
-    siz: NonZeroUsize,
-    stor: Option<Mutex<VecDeque<PathBuf>>>,
-    idgen: Sqids,
-    seqno: AtomicU64,
-}
-
-fn push_inner(stor: &mut VecDeque<PathBuf>, new_path: PathBuf) -> Option<PathBuf> {
-    let mut ret = None;
-    if stor.len() == stor.capacity() {
-        ret = stor.pop_back();
-        stor.push_front(new_path);
-    } else {
-        stor.push_front(new_path);
-    }
-    ret
-}
-
-impl StorageState {
-    pub fn get_base(&self) -> PathBuf {
-        self.base.clone()
-    }
-
-    pub fn get_max_siz(&self) -> usize {
-        self.siz.get()
-    }
-
-    pub fn push<T: AsRef<Path>>(&self, new_path: T) -> Option<PathBuf> {
-        self.stor
-            .as_ref()
-            .map(|s| s.lock().unwrap())
-            .and_then(|mut stor| push_inner(&mut stor, new_path.as_ref().to_path_buf()))
-    }
-
-    fn prepopulate(&self) -> std::io::Result<()> {
-        let read_dir = match std::fs::read_dir(&self.base) {
-            Ok(r) => r,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                std::fs::create_dir_all(&self.base)?;
-                // nothing to read, unless we have some kind of TOCTOU situation, which would be bizarre.
-                return Ok(());
-            }
-            Err(e) => return Err(e),
-        };
-        if let Some(mut stor) = self.stor.as_ref().map(|s| s.lock().unwrap()) {
-            for file in read_dir {
-                let file = file?.path();
-                if file.is_file()
-                    && let Some(del) = push_inner(&mut stor, file)
-                {
-                    std::fs::remove_file(del)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub fn gen_new_fname(&self, ext: &'static str) -> String {
-        for _ in 0..64 {
-            let seq = self
-                .seqno
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            // pads out the id for low sequence numbers and adds minor random noise to it.
-            let rand_junk = rand::rng().random::<u16>() as u64;
-            // unlikely, but it could fail to generate an ID due to offensive words.
-            if let Ok(id) = self.idgen.encode(&[seq, rand_junk]) {
-                return format!("{id}.{ext}",);
-            }
-        }
-        panic!("Failed to generate an ID after 64 attempts. Something is wrong.");
-    }
-}
-
-impl<const T: usize> From<StorageSettings<T>> for StorageState {
-    fn from(value: StorageSettings<T>) -> Self {
-        let stor = value
-            .cnt
-            .map(|v| v.get())
-            .map(|cap| Mutex::new(VecDeque::with_capacity(cap)));
-
-        let mut rng = rand::rng();
-        let mut rand_alpha = sqids::DEFAULT_ALPHABET.chars().collect::<Vec<_>>();
-        rand_alpha.shuffle(&mut rng);
-        let idgen = Sqids::builder()
-            .alphabet(rand_alpha)
-            .build()
-            .expect("Should not happen. Alphabet is from the crate, but shuffled.");
-
-        Self {
-            base: value.dir,
-            siz: value.siz,
-            stor,
-            idgen,
-            seqno: AtomicU64::new(0),
         }
     }
 }
@@ -296,10 +195,8 @@ impl Config {
     }
 
     pub fn get_webdata(&mut self) -> Result<Arc<WebData>, ConfigError> {
-        let image = StorageState::from(self.image.take().unwrap_or_default());
-        let paste = StorageState::from(self.paste.take().unwrap_or_default());
-        image.prepopulate()?;
-        paste.prepopulate()?;
+        let image = StorageState::try_from(self.image.take().unwrap_or_default())?;
+        let paste = StorageState::try_from(self.paste.take().unwrap_or_default())?;
         Ok(Arc::new(WebData {
             image,
             paste,
@@ -348,7 +245,7 @@ const EXAMPLE_CONFIG: &str = r###"
 { "image":
     { "//": "Max allowed image size in bytes. default 10MiB."
     , "siz": 10485760
-    , "//": "Max number of files before deleting. default: unlimited."
+    , "//": "estimated number of FULL-SIZED files. default: unlimited."
     , "cnt": 100
     , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/i or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/i"
     , "dir": "./uploads/i"
@@ -356,7 +253,7 @@ const EXAMPLE_CONFIG: &str = r###"
 , "paste":
     { "//": "Max allowed paste size. Note: pastes are buffered in memory to check for utf8-ness and simplicity."
     , "siz": 65536
-    , "//": "Max number of files before deleting. default: unlimited."
+    , "//": "estimated number of FULL-SIZED files. default: unlimited."
     , "cnt": 10000
     , "//": "Path to store images in, default uses ${STATE_DIRECTORY}/p or ${XDG_DATA_HOME}/${CARGO_PKG_NAME}/p"
     , "dir": "./uploads/p"

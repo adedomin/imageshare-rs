@@ -72,15 +72,16 @@ fn main() {
 }
 
 fn real_main() -> Result<(), MainErr> {
-    let (config, webdata) = get_config()?;
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
-    Ok(rt.block_on(async {
+    rt.block_on(async {
+        let (config, webdata) = get_config()?;
         let web = web::start_web(config, webdata);
-        web.await.unwrap()
-    })?)
+        web.await.unwrap()?;
+        Ok(())
+    })
 }
 
 #[cfg(windows)]
