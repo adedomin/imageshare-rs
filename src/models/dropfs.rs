@@ -1,13 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+use crate::tasks::cleanup::background_rm_file;
 
 pub struct DropFsGuard<'a> {
     inner: Option<&'a Path>,
-}
-
-pub fn background_rm_file(del: PathBuf) {
-    tokio::task::spawn_blocking(move || {
-        _ = std::fs::remove_file(del);
-    });
 }
 
 impl<'a> DropFsGuard<'a> {

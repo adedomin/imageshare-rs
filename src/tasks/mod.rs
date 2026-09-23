@@ -12,7 +12,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-pub mod image;
-pub mod paste;
-pub mod static_files;
-pub mod uds;
+pub mod cleanup;
+pub mod shutdown;
+pub mod web;

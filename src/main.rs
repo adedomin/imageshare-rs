@@ -13,14 +13,17 @@
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 use std::process::exit;
 
+use tokio_util::sync::CancellationToken;
+
 use crate::{
     config::{ConfigError, get_config},
-    web::WebErr,
+    tasks::web::WebErr,
 };
+
 mod config;
 mod middleware;
 mod models;
-mod shutdown;
+mod tasks;
 mod web;
 
 #[derive(thiserror::Error, Debug)]
@@ -60,33 +63,23 @@ fn set_rlimit() -> Result<(), libc::c_int> {
 
 #[cfg(unix)]
 fn main() {
+    let stop_token = CancellationToken::new();
     // We don't use select() so we should be able to match the hard NOFILE limit.
     // NodeJS seems to do this as well.
     if let Err(e) = set_rlimit() {
         eprintln!("WARN: Failed to get/set NOFILE rlimit; error: {e}");
     }
-    if let Err(e) = real_main() {
+    if let Err(e) = real_main(stop_token, false) {
         eprintln!("{e}");
         exit(1);
     }
 }
 
-fn real_main() -> Result<(), MainErr> {
-    let (config, webdata) = get_config()?;
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap();
-    Ok(rt.block_on(async {
-        let web = web::start_web(config, webdata);
-        web.await.unwrap()
-    })?)
-}
-
 #[cfg(windows)]
 fn main() {
-    if svc_main().is_err()
-        && let Err(e) = real_main()
+    let stop_token = CancellationToken::new();
+    if svc_main(stop_token.clone()).is_err()
+        && let Err(e) = real_main(stop_token, false)
     {
         eprintln!("{e}");
         exit(1);
@@ -94,22 +87,19 @@ fn main() {
 }
 
 #[cfg(windows)]
-fn svc_main() -> Result<(), ()> {
-    use crate::shutdown::windows::SERVICE_STOP;
-    use tokio_util::sync::CancellationToken;
+fn svc_main(stop_tok: CancellationToken) -> Result<(), ()> {
     use windows_services::{Command, Service, State};
 
-    let stop_token = CancellationToken::new();
     let mut thread = None;
     Service::new()
         .can_stop()
         .run(move |service, msg| match msg {
             Command::Start if thread.is_none() => {
-                _ = SERVICE_STOP.set(stop_token.clone());
                 thread = Some(unsafe {
                     std::thread::Builder::new()
                         .spawn_unchecked(move || {
-                            real_main().inspect_err(|_| service.set_state(State::Stopped))
+                            real_main(stop_token.clone(), true)
+                                .inspect_err(|_| service.set_state(State::Stopped))
                         })
                         .unwrap()
                 })
@@ -123,4 +113,21 @@ fn svc_main() -> Result<(), ()> {
             _ => (), // unsupported
         })
         .map_err(|_| ()) // err is static string.
+}
+
+fn real_main(stop_tok: CancellationToken, win_srv: bool) -> Result<(), MainErr> {
+    let (config, webdata, cleanup_task) = get_config(stop_tok.clone())?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        let shutdown_task = tasks::shutdown::shutdown(stop_tok.clone(), win_srv);
+        let web_task = tasks::web::start_web(stop_tok, config, webdata);
+
+        let (_, web_err) = tokio::try_join!(shutdown_task, web_task).unwrap();
+        cleanup_task.join().unwrap();
+
+        web_err.map_err(|e| e.into())
+    })
 }

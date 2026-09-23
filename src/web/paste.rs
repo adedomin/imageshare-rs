@@ -26,13 +26,10 @@ use axum::extract::Path as ExtractPath;
 use http::StatusCode;
 use tower::ServiceBuilder;
 
+use crate::tasks::cleanup::new_paste;
 use crate::{
     middleware::contentlen::HeaderSizeLim,
-    models::{
-        api::ApiError,
-        dropfs::{DropFsGuard, background_rm_file},
-        webdata::WebData,
-    },
+    models::{api::ApiError, dropfs::DropFsGuard, webdata::WebData},
     web::image::payload_too_large,
 };
 
@@ -57,12 +54,9 @@ async fn upload_paste(
     } = webdata.as_ref();
     let paste = handle_paste(paste, storage.get_max_siz())?;
     let fname = storage.gen_new_fname("txt");
-    let mut upload = storage.get_base();
-    upload.push(&fname);
+    let upload = storage.get_base().join(&fname);
     // if the file fails beyond this point, it will be stale in the FIFO. oh well.
-    if let Some(del) = storage.push(&upload) {
-        background_rm_file(del);
-    }
+    new_paste(upload.clone());
 
     let fguard = DropFsGuard::new(&upload);
     tokio::fs::write(&upload, paste).await?;
@@ -98,8 +92,7 @@ async fn get_file(
     State(webdata): State<Arc<WebData>>,
     ExtractPath(path): ExtractPath<String>,
 ) -> Response {
-    let mut b = webdata.paste.get_base();
-    b.push(path);
+    let b = webdata.paste.get_base().join(path);
     // NOTE: we already read in uploaded pastes into memory,
     // so we should be able to safely read them into memory to send.
     match tokio::fs::read(&b).await {

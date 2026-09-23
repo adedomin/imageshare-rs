@@ -14,4 +14,5 @@
 pub mod api;
 pub mod dropfs;
 pub mod mime;
+pub mod storage;
 pub mod webdata;

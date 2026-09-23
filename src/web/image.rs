@@ -15,9 +15,10 @@ use std::{path::Path, sync::Arc};
 
 use crate::middleware::contentlen::HeaderSizeLim;
 use crate::middleware::earlyretfut::ConsumeBody;
-use crate::models::dropfs::{DropFsGuard, background_rm_file};
+use crate::models::dropfs::DropFsGuard;
 use crate::models::webdata::WebData;
 use crate::models::{api::ApiError, mime::detect_ext};
+use crate::tasks::cleanup::new_image;
 use axum::body::{Body, BodyDataStream};
 use axum::{
     Router,
@@ -72,12 +73,9 @@ async fn upload_img(State(webdata): State<Arc<WebData>>, body: Body) -> Result<A
     } = webdata.as_ref();
     let (mut body, initial_read, ext) = get_ext(body.into_data_stream()).await?;
     let fname = storage.gen_new_fname(ext);
-    let mut upload = storage.get_base();
-    upload.push(&fname);
+    let upload = storage.get_base().join(&fname);
     // if the file fails beyond this point, it will be stale in the FIFO. oh well.
-    if let Some(del) = storage.push(&upload) {
-        background_rm_file(del);
-    }
+    new_image(upload.clone());
 
     let fguard = DropFsGuard::new(&upload);
     {
@@ -114,7 +112,7 @@ To serve the /i folder, Please see the example nginx snippet:
 # assumes you use the default image path
 location /i/ {
     add_header X-Content-Type-Options nosniff;
-    alias /var/lib/imageshare-rs;
+    root /var/lib/imageshare-rs;
 }
 ```
 "###;
