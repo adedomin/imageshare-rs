@@ -97,16 +97,19 @@ fn svc_main(stop_tok: CancellationToken) -> Result<(), ()> {
             Command::Start if thread.is_none() => {
                 thread = Some(unsafe {
                     std::thread::Builder::new()
-                        .spawn_unchecked(move || {
-                            real_main(stop_token.clone(), true)
-                                .inspect_err(|_| service.set_state(State::Stopped))
+                        .spawn_unchecked({
+                            let stop_tok = stop_tok.clone();
+                            move || {
+                                real_main(stop_tok, true)
+                                    .inspect_err(|_| service.set_state(State::Stopped))
+                            }
                         })
                         .unwrap()
                 })
             }
             Command::Stop => {
                 if let Some(jh) = thread.take() {
-                    stop_token.cancel();
+                    stop_tok.cancel();
                     _ = jh.join();
                 }
             }

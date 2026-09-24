@@ -12,6 +12,7 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+use crate::tasks::cleanup::cleanup_shutdown;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
@@ -23,8 +24,6 @@ pub fn shutdown(stop_tok: CancellationToken, _win_srv: bool) -> JoinHandle<()> {
     };
 
     tokio::spawn(async move {
-        use crate::tasks::cleanup::cleanup_shutdown;
-
         let mut sigterm = unix::signal(SignalKind::terminate()).unwrap();
         tokio::select! {
             _ = ctrl_c() => {}
