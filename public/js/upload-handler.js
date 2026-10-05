@@ -23,25 +23,31 @@ const submit = document.getElementById('submit');
 const uploads = document.getElementById('uploads');
 const tmpl = document.getElementById('upload-tmpl');
 
+function createArrowOverlay(container, video) {
+    const border = document.createElement('div');
+    border.classList.add('video-play-overlay');
+    border.dataset.paused = "2";
+    const overlay = document.createElement('div');
+    overlay.classList.add('video-play-overlay');
+    overlay.dataset.paused = "1";
+
+    container.addEventListener('click', function(e) {
+        if (video.paused) {
+            border.dataset.paused = "0";
+            overlay.dataset.paused = "0";
+            video.play();
+        }
+        else {
+            border.dataset.paused = "2";
+            overlay.dataset.paused = "1";
+            video.pause();
+        }
+    });
+    container.appendChild(border);
+    container.appendChild(overlay);
+}
+
 function createImageFigure(file) {
-    const isVideo = file.type.startsWith('video');
-    const imgEl = document.createElement(
-        isVideo ? 'video' : 'img',
-    );
-    imgEl.src = URL.createObjectURL(file);
-    if (isVideo) {
-        imgEl.muted = true;
-        imgEl.loop = true;
-        imgEl.addEventListener('click', function(e) {
-            if (e.target.paused) {
-                e.target.play();
-            }
-            else {
-                e.target.pause();
-            }
-        });
-    }
-    return imgEl;
 }
 
 function handleCopyLink(ev) {
@@ -128,7 +134,18 @@ function createUploadBox(file) {
     const box = tmpl.content.cloneNode(true).querySelector('.upload-g');
 
     const media = box.querySelector('.img');
-    media.appendChild(createImageFigure(file));
+
+    const isVideo = file.type.startsWith('video');
+    const imgEl = document.createElement(
+        isVideo ? 'video' : 'img',
+    );
+    imgEl.src = URL.createObjectURL(file);
+    if (isVideo) {
+        imgEl.muted = true;
+        imgEl.loop = true;
+        createArrowOverlay(media, imgEl);
+    }
+    media.appendChild(imgEl);
 
     const copyBtn = box.querySelector('button');
     copyBtn.disabled = true;

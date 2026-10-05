@@ -48,21 +48,20 @@ impl<S> Layer<S> for HeaderSizeLim {
 }
 
 /// check content-length and make sure the stated size is less than or equal to the limit.
+/// Note if the header is not set, this returns true.
 fn check_len(headers: &HeaderMap, lim: usize) -> bool {
-    // hyper kills connections with multiple, conflicting content-lengths.
-    // Should be safe to read the first one.
-    match headers.get(CONTENT_LENGTH).map(|v| {
-        v.to_str()
-            .or(Err(()))
-            .and_then(|v| v.parse::<usize>().or(Err(())))
-    }) {
-        Some(Ok(len)) => len <= lim,
-        // shouldn't happen; parse error.
-        Some(Err(_)) => false,
-        // no header.
-        None => true,
+    let mut iter = headers.get_all(CONTENT_LENGTH).iter();
+    let Some(init) = iter.next() else {
+        return true; // no content-length
+    };
+    // should not happen... sanity anyway.
+    if iter.all(|v| init == v)
+        && let Some(len) = init.to_str().ok().and_then(|s| s.parse::<usize>().ok())
+    {
+        len <= lim
+    } else {
+        false // weird request, kill it.
     }
-    // TODO: What should we do when we get Transfer-Encoding: chunked && Content-Lenght: NUM ???
 }
 
 impl<S> Service<Request> for HeaderSizeLimMiddle<S>
