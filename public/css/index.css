@@ -172,7 +172,7 @@ img, video {
   max-width: 100%;
 }
 
-video {
+video, .video-play-overlay {
   cursor: pointer;
 }
 

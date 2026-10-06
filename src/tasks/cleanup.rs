@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque, fs::remove_file, path::PathBuf, sync::OnceLock, thread::JoinHandle,
 };
 
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::SendError};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
@@ -17,8 +17,9 @@ static SEND_TO_TASK: OnceLock<mpsc::UnboundedSender<Actions>> = OnceLock::new();
 
 pub fn background_rm_file(del: PathBuf) {
     let sender = SEND_TO_TASK.get().expect("sender not initialized!");
-    if let Err(e) = sender.send(Actions::Delete(del)) {
-        eprintln!("[SEND TASK] Error: {e}");
+    // delete any stragglers on server shutdown.
+    if let Err(SendError(Actions::Delete(del))) = sender.send(Actions::Delete(del)) {
+        _ = remove_file(del);
     }
 }
 
