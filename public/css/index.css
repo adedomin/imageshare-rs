@@ -181,18 +181,19 @@ video {
   inset: 0;
   width: 100%;
   height: 100%;
+  opacity: 0.7;
 }
 
 .video-play-overlay[data-paused="2"] {
   background-color: var(--bg);
-  clip-path: polygon(34% 30%, 68.641% 50%, 34% 70%);
+  clip-path: rect(20% 80% 80% 20% round 20%);
   z-index: 998;
 }
 
 
 .video-play-overlay[data-paused="1"] {
   background-color: var(--fg);
-  clip-path: polygon(35% 31%, 67.909% 50%, 35% 69%);
+  clip-path: polygon(36% 28%, 74.1% 50%, 36% 72%);
   z-index: 999;
 }
 
