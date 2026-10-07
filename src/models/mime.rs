@@ -11,19 +11,14 @@
 // WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-pub const MIME: [(&[u8], usize, &str); 14] = [
-    (&[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], 0, "png"),
-    (&[0xFF, 0xD8, 0xFF], 0, "jpg"),
-    (
-        &[
-            0, 0, 0, 0x0C, 0x4A, 0x58, 0x4C, 0x20, 0x0D, 0x0A, 0x87, 0x0A,
-        ],
-        0,
-        "jxl",
-    ),
+pub const MIME: [(&[u8], usize, &str); 15] = [
+    (b"\x89PNG\r\n\x1A\n", 0, "png"),
+    (b"\xFF\xD8\xFF", 0, "jpg"),
+    (b"\xFF\n", 0, "jxl"),
+    (b"\x00\x00\x00\x0CJXL \r\n\x87\n", 0, "jxl"),
     (b"GIF87a", 0, "gif"),
     (b"GIF89a", 0, "gif"),
-    (&[0x1A, 0x45, 0xDF, 0xA3], 0, "webm"),
+    (b"\x1A\x45\xDF\xA3", 0, "webm"),
     (b"ftypMSNV", 4, "mp4"),
     (b"ftypisom", 4, "mp4"),
     (b"ftypmp42", 4, "mp4"),
