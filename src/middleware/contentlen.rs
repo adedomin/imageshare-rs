@@ -55,13 +55,12 @@ fn check_len(headers: &HeaderMap, lim: usize) -> bool {
         return true; // no content-length
     };
     // should not happen... sanity anyway.
-    if iter.all(|v| init == v)
-        && let Some(len) = init.to_str().ok().and_then(|s| s.parse::<usize>().ok())
-    {
-        len <= lim
-    } else {
-        false // weird request, kill it.
-    }
+    iter.all(|v| init == v)
+        && init
+            .to_str()
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .is_some_and(|len| len <= lim)
 }
 
 impl<S> Service<Request> for HeaderSizeLimMiddle<S>
