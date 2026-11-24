@@ -100,7 +100,7 @@ h2 {
   padding-right: 10px;
 }
 
-#submit:not(button[disabled]) {
+#submit:not(.disabled) {
   background-color: var(--select-col);
 }
 
@@ -113,8 +113,13 @@ button[disabled] {
   opacity: 0.5;
 }
 
-button[disabled]:hover {
-  background-color: var(--bg);
+/* I blame Firefox for this...
+ * Because of how clipboard events work in Firefox,
+ * the submit button cannot use disabled attr.
+ */
+.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .selected {

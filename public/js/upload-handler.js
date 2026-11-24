@@ -180,7 +180,7 @@ function handleFile(file) {
 function changeFileLabel(el) {
     dropzone.textContent = `Selected (${el.target.files.length})`;
     if (el.target.files.length > 0) {
-        submit.disabled = false;
+        submit.classList.remove('disabled');
     }
 }
 
@@ -190,7 +190,7 @@ function handleAllUploads(files) {
         return;
     }
 
-    submit.disabled = true;
+    submit.classList.add('disabled');
     statusMsg.textContent = 'Uploading...';
     Promise.allSettled(Array.prototype.map.call(files, handleFile)).then(results => {
         dropzone.textContent = 'Select or Drop Files';
@@ -204,7 +204,10 @@ function handleAllUploads(files) {
 }
 
 function uploadFile() {
-    handleAllUploads(files.files);
+    // ffs
+    if (!submit.classList.contains('disabled')) {
+        handleAllUploads(files.files);
+    }
 }
 
 function dropHandle(el) {
@@ -215,7 +218,6 @@ function dropHandle(el) {
     }
 }
 
-// from old js version, simplified, doesn't work in Firefox?
 function pasteHandle(el) {
     el.preventDefault();
     const files = el?.clipboardData?.files;
