@@ -215,6 +215,15 @@ function dropHandle(el) {
     }
 }
 
+// from old js version, simplified, doesn't work in Firefox?
+function pasteHandle(el) {
+    el.preventDefault();
+    const files = el?.clipboardData?.files;
+    if (files != null) {
+        handleAllUploads(files);
+    }
+}
+
 function dragover(el) {
     el.preventDefault();
 }
@@ -230,3 +239,5 @@ dropzone.addEventListener('dragover', dragover);
 dropzone.addEventListener('dragend', dragend);
 
 submit.addEventListener('click', uploadFile);
+
+document.addEventListener('paste', pasteHandle);
